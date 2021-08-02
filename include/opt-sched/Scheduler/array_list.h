@@ -4,6 +4,10 @@
 // whole array must be copied in those cases. This class works on both host
 // and device and contains methods to copy to device
 
+// (Josh) For scsr and prdcsr lists on the device, instNum_ is used to index
+// into the linearized 2D ArrayList of elmnts_. Otherwise if instNum_ is -1
+// the elmnts_ array is accessed normally
+
 #define END -1
 #define GLOBALTID blockIdx.x * blockDim.x + threadIdx.x 
 
@@ -77,6 +81,8 @@ class ArrayList {
     int maxSize_;
     int size_;
     int crnt_;
+    int instNum_;
+    int lstLngth_;
     int *dev_crnt_;
     T *elmnts_;
 };
@@ -133,6 +139,8 @@ class ArrayList<int> {
       maxSize_ = maxSize;
       size_ = 0;
       crnt_ = 0;
+      instNum_ = -1;
+      lstLngth_ = 0;
       dev_crnt_ = NULL;
       if (maxSize > 0)
         elmnts_ = new int[maxSize_];
@@ -149,10 +157,13 @@ class ArrayList<int> {
     // Appends a new element to the end of the list
     __host__ __device__
     void InsrtElmnt(int elmnt) {
-      if (size_ < maxSize_)
-        elmnts_[size_++] = elmnt;
+      if (size_ < maxSize_) {
+        if (instNum_ >= 0)
+          elmnts_[lstLngth_*size_++ + instNum_] = elmnt;
+        else
+          elmnts_[size_++] = elmnt;
+      }
     }
-
     // Returns number of elements in ArrayList
     __host__ __device__
     int GetElmntCnt() {
@@ -166,24 +177,33 @@ class ArrayList<int> {
       if (dev_crnt_) {
         dev_crnt_[GLOBALTID] = 0;
 
-        if (dev_crnt_[GLOBALTID] < size_)
-          return elmnts_[dev_crnt_[GLOBALTID]];
-        else
+        if (dev_crnt_[GLOBALTID] < size_) {
+          if (instNum_ >= 0)
+            return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+          else
+            return elmnts_[dev_crnt_[GLOBALTID]];
+        } else
           return END;
       } else {
         crnt_ = 0;
   
-        if (crnt_ < size_)
-          return elmnts_[crnt_];
-        else
+        if (crnt_ < size_) {
+          if (instNum_ >= 0)
+            return elmnts_[lstLngth_*crnt_ + instNum_] = elmnt;
+          else
+            return elmnts_[crnt_];
+        } else
           return END;
       }
 #else
       crnt_ = 0;
   
-      if (crnt_ < size_)
-        return elmnts_[crnt_];
-      else
+      if (crnt_ < size_) {
+        if (instNum_ >= 0)
+          return elmnts_[lstLngth_*crnt_ + instNum_];
+        else
+          return elmnts_[crnt_];
+      } else
         return END;
 #endif
     }
@@ -198,9 +218,12 @@ class ArrayList<int> {
         else
           return END;
 
-        if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0)
-          return elmnts_[dev_crnt_[GLOBALTID]];
-        else
+        if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0) {
+          if (instNum_ >= 0)
+            return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+          else
+            return elmnts_[dev_crnt_[GLOBALTID]];
+        } else
           return END;
       } else {
         if (crnt_ != size_)
@@ -208,9 +231,12 @@ class ArrayList<int> {
         else
           return END;
 
-        if (crnt_ < size_ && crnt_ >= 0)
-          return elmnts_[crnt_];
-        else
+        if (crnt_ < size_ && crnt_ >= 0) {
+          if (instNum_ >= 0)
+            return elmnts_[lstLngth_*crnt_ + instNum_];
+          else
+            return elmnts_[crnt_];
+        } else
           return END;
       }
 #else
@@ -219,9 +245,12 @@ class ArrayList<int> {
       else
         return END;
 
-      if (crnt_ < size_ && crnt_ >= 0)
-        return elmnts_[crnt_];
-      else
+      if (crnt_ < size_ && crnt_ >= 0) {
+        if (instNum_ >= 0)
+          return elmnts_[lstLngth_*crnt_ + instNum_];
+        else
+          return elmnts_[crnt_];
+      } else
         return END;
 #endif
     }
@@ -237,9 +266,12 @@ class ArrayList<int> {
 
         indx = dev_crnt_[GLOBALTID];
 
-        if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0)
-          return elmnts_[dev_crnt_[GLOBALTID]];
-        else
+        if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0) {
+          if (instNum_ >= 0)
+            return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+          else
+            return elmnts_[dev_crnt_[GLOBALTID]];
+        } else
           return END;
       } else {
         if (crnt_ != size_)
@@ -249,9 +281,12 @@ class ArrayList<int> {
 
         indx = crnt_;
 
-        if (crnt_ < size_ && crnt_ >= 0)
-          return elmnts_[crnt_];
-        else
+        if (crnt_ < size_ && crnt_ >= 0) {
+          if (instNum_ >= 0)
+            return elmnts_[lstLngth_*crnt_ + instNum_];
+          else
+            return elmnts_[crnt_];
+        } else
           return END;
       }
 #else
@@ -262,9 +297,12 @@ class ArrayList<int> {
 
       indx = crnt_;
 
-      if (crnt_ < size_ && crnt_ >= 0)
-        return elmnts_[crnt_];
-      else
+      if (crnt_ < size_ && crnt_ >= 0) {
+        if (instNum_ >= 0)
+          return elmnts_[lstLngth_*crnt_ + instNum_];
+        else
+          return elmnts_[crnt_];
+      } else
         return END;
 #endif
     }
@@ -279,9 +317,12 @@ class ArrayList<int> {
         else
           return END;
 
-        if (dev_crnt_[GLOBALTID] >= 0 && dev_crnt_[GLOBALTID] < size_)
-          return elmnts_[dev_crnt_[GLOBALTID]];
-        else
+        if (dev_crnt_[GLOBALTID] >= 0 && dev_crnt_[GLOBALTID] < size_) {
+          if (instNum_ >= 0)
+            return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+          else
+            return elmnts_[dev_crnt_[GLOBALTID]];
+        } else
           return END;
       } else {
         if (crnt_ != 0)
@@ -289,9 +330,12 @@ class ArrayList<int> {
         else
           return END;
 
-        if (crnt_ >= 0 && crnt_ < size_)
-          return elmnts_[crnt_];
-        else
+        if (crnt_ >= 0 && crnt_ < size_) {
+          if (instNum_ >= 0)
+            return elmnts_[lstLngth_*crnt_ + instNum_];
+          else
+            return elmnts_[crnt_];
+        } else
           return END;
       }
 #else
@@ -300,9 +344,12 @@ class ArrayList<int> {
       else
         return END;
 
-      if (crnt_ >= 0 && crnt_ < size_)
-        return elmnts_[crnt_];
-      else
+      if (crnt_ >= 0 && crnt_ < size_) {
+        if (instNum_ >= 0)
+          return elmnts_[lstLngth_*crnt_ + instNum_];
+        else
+          return elmnts_[crnt_];
+      } else
         return END;
 #endif
     }
@@ -317,22 +364,31 @@ class ArrayList<int> {
         else
           return END;
 
-        return elmnts_[dev_crnt_[GLOBALTID]];
+        if (instNum_ >= 0)
+          return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+        else
+          return elmnts_[dev_crnt_[GLOBALTID]];
       } else {
         if (size_ > 0)
           crnt_ = size_ - 1;
         else
           return END;
 
-        return elmnts_[crnt_];
+        if (instNum_ >= 0)
+          return elmnts_[lstLngth_*crnt_ + instNum_];
+        else
+          return elmnts_[crnt_];
       }
 #else
       if (size_ > 0)
         crnt_ = size_ - 1;
       else 
-	return END;
+	      return END;
 
-      return elmnts_[crnt_];
+      if (instNum_ >= 0)
+        return elmnts_[lstLngth_*crnt_ + instNum_];
+      else
+        return elmnts_[crnt_];
 #endif
     }
 
@@ -362,10 +418,17 @@ class ArrayList<int> {
 
     __host__ __device__
     bool FindElmnt(const int element, int &hitCnt) const {
-      for (int i = 0; i < size_; i++) {
-        if (element == elmnts_[i])
-          hitCnt++;
+      if (instNum_ >= 0) {
+        for (int i = 0; i < size_; i++) {
+          if (element == elmnts_[lstLngth_*i + instNum_])
+            hitCnt++;
         }
+      } else {
+        for (int i = 0; i < size_; i++) {
+          if (element == elmnts_[i])
+            hitCnt++;
+        }
+      }
       return hitCnt > 0 ? true : false;
     }
 
@@ -378,20 +441,34 @@ class ArrayList<int> {
     __host__ __device__
     void RmvElmnt(int elmnt) {
       int elmntIndx;
-      for (int i = 0; i < size_; i++) {
-        if (elmnts_[i] == elmnt) {
-          elmntIndx = i;
-          break;
+      if (instNum_ >= 0) {
+        for (int i = 0; i < size_; i++) {
+          if (elmnts_[lstLngth_*i + instNum_] == elmnt) {
+            elmntIndx = i;
+            break;
+          }
         }
+        size_--;
+        for (int i = elmntIndx; i < size_; i++)
+          elmnts_[lstLngth_*i + instNum_] = elmnts_[lstLngth_*(i + 1) + instNum_];
+      } else {
+        for (int i = 0; i < size_; i++) {
+          if (elmnts_[i] == elmnt) {
+            elmntIndx = i;
+            break;
+          }
+        }
+        size_--;
+        for (int i = elmntIndx; i < size_; i++)
+          elmnts_[i] = elmnts_[i + 1];
       }
-      size_--;
-      for (int i = elmntIndx; i < size_; i++)
-        elmnts_[i] = elmnts_[i + 1];
     }
 
     int maxSize_;
     int size_;
     int crnt_;
+    int instNum_;
+    int lstLngth_;
     int *dev_crnt_;
     int *elmnts_;
 };
@@ -402,6 +479,8 @@ ArrayList<T>::ArrayList(int maxSize) {
   maxSize_ = maxSize;
   size_ = 0;
   crnt_ = 0;
+  instNum_ = -1;
+  lstLngth_ = 0;
   dev_crnt_ = NULL;
   if (maxSize > 0)
     elmnts_ = new T[maxSize_];
@@ -419,8 +498,12 @@ ArrayList<T>::~ArrayList() {
 template <typename T>
 __host__ __device__
 void ArrayList<T>::InsrtElmnt(T elmnt) {
-  if (size_ < maxSize_)
-    elmnts_[size_++] = elmnt;
+  if (size_ < maxSize_) {
+    if (instNum_ >= 0)
+      elmnts_[lstLngth_*size_++ + instNum_] = elmnt;
+    else
+      elmnts_[size_++] = elmnt;
+  }
 }
 
 template <typename T>
@@ -436,24 +519,33 @@ T ArrayList<T>::GetFrstElmnt() {
   if (dev_crnt_) {
     dev_crnt_[GLOBALTID] = 0;
 
-    if (dev_crnt_[GLOBALTID] < size_)
-      return elmnts_[dev_crnt_[GLOBALTID]];
-    else
+    if (dev_crnt_[GLOBALTID] < size_) {
+      if (instNum_ >= 0)
+        return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+      else
+        return elmnts_[dev_crnt_[GLOBALTID]];
+    } else
       return NULL;
   } else {
     crnt_ = 0;
 
-    if (crnt_ < size_)
-      return elmnts_[crnt_];
-    else
+    if (crnt_ < size_) {
+      if (instNum_ >= 0)
+        return elmnts_[lstLngth_*crnt_ + instNum_];
+      else
+        return elmnts_[crnt_];
+    } else
       return NULL;
   }
 #else
   crnt_ = 0;
   
-  if (crnt_ < size_)
-    return elmnts_[crnt_];
-  else
+  if (crnt_ < size_) {
+    if (instNum_ >= 0)
+      return elmnts_[lstLngth_*crnt_ + instNum_];
+    else
+      return elmnts_[crnt_];
+  } else
     return NULL;
 #endif
 }
@@ -468,9 +560,12 @@ T ArrayList<T>::GetNxtElmnt() {
     else
       return NULL;
 
-    if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0)
-      return elmnts_[dev_crnt_[GLOBALTID]];
-    else
+    if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0) {
+      if (instNum_ >= 0)
+        return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+      else
+        return elmnts_[dev_crnt_[GLOBALTID]];
+    } else
       return NULL;
   } else {
     if (crnt_ != size_)
@@ -478,9 +573,12 @@ T ArrayList<T>::GetNxtElmnt() {
     else
       return NULL;
 
-    if (crnt_ < size_ && crnt_ >= 0)
-      return elmnts_[crnt_];
-    else
+    if (crnt_ < size_ && crnt_ >= 0) {
+      if (instNum_ >= 0)
+        return elmnts_[lstLngth_*crnt_ + instNum_];
+      else
+        return elmnts_[crnt_];
+    } else
       return NULL;
   }
 #else
@@ -489,9 +587,12 @@ T ArrayList<T>::GetNxtElmnt() {
   else
     return NULL;
 
-  if (crnt_ < size_ && crnt_ >= 0)
-    return elmnts_[crnt_];
-  else
+  if (crnt_ < size_ && crnt_ >= 0) {
+    if (instNum_ >= 0)
+      return elmnts_[lstLngth_*crnt_ + instNum_];
+    else
+      return elmnts_[crnt_];
+  } else
     return NULL;
 #endif
 }
@@ -508,9 +609,12 @@ T ArrayList<T>::GetNxtElmnt(int &indx) {
 
     indx = dev_crnt_[GLOBALTID];
 
-    if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0)
-      return elmnts_[dev_crnt_[GLOBALTID]];
-    else
+    if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0) {
+      if (instNum_ >= 0)
+        return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+      else
+        return elmnts_[dev_crnt_[GLOBALTID]];
+    } else
       return NULL;
   } else {
     if (crnt_ != size_)
@@ -520,9 +624,12 @@ T ArrayList<T>::GetNxtElmnt(int &indx) {
 
     indx = crnt_;
 
-    if (crnt_ < size_ && crnt_ >= 0)
-      return elmnts_[crnt_];
-    else
+    if (crnt_ < size_ && crnt_ >= 0) {
+      if (instNum_ >= 0)
+        return elmnts_[lstLngth_*crnt_ + instNum_];
+      else
+        return elmnts_[crnt_];
+    } else
       return NULL;
   }
 #else
@@ -533,9 +640,12 @@ T ArrayList<T>::GetNxtElmnt(int &indx) {
 
   indx = crnt_;
 
-  if (crnt_ < size_ && crnt_ >= 0)
-    return elmnts_[crnt_];
-  else
+  if (crnt_ < size_ && crnt_ >= 0) {
+    if (instNum_ >= 0)
+      return elmnts_[lstLngth_*crnt_ + instNum_];
+    else
+      return elmnts_[crnt_];
+  } else
     return NULL;
 #endif
 }
@@ -550,9 +660,12 @@ T ArrayList<T>::GetPrevElmnt() {
     else
       return NULL;
 
-    if (dev_crnt_[GLOBALTID] >= 0 && dev_crnt_[GLOBALTID] < size_)
-      return elmnts_[dev_crnt_[GLOBALTID]];
-    else
+    if (dev_crnt_[GLOBALTID] >= 0 && dev_crnt_[GLOBALTID] < size_) {
+      if (instNum_ >= 0)
+        return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+      else
+        return elmnts_[dev_crnt_[GLOBALTID]];
+    } else
       return NULL;
   } else {
     if (crnt_ != 0)
@@ -560,9 +673,12 @@ T ArrayList<T>::GetPrevElmnt() {
     else
       return NULL;
 
-    if (crnt_ >= 0 && crnt_ < size_)
-      return elmnts_[crnt_];
-    else
+    if (crnt_ >= 0 && crnt_ < size_) {
+      if (instNum_ >= 0)
+        return elmnts_[lstLngth_*crnt_ + instNum_];
+      else
+        return elmnts_[crnt_];
+    } else
       return NULL;
   }
 #else
@@ -571,9 +687,12 @@ T ArrayList<T>::GetPrevElmnt() {
   else
     return NULL;
 
-  if (crnt_ >= 0 && crnt_ < size_)
-    return elmnts_[crnt_];
-  else
+  if (crnt_ >= 0 && crnt_ < size_) {
+    if (instNum_ >= 0)
+      return elmnts_[lstLngth_*crnt_ + instNum_];
+    else
+      return elmnts_[crnt_];
+  } else
     return NULL;
 #endif
 }
@@ -588,14 +707,20 @@ T ArrayList<T>::GetLastElmnt() {
     else
       return NULL;
 
-    return elmnts_[dev_crnt_[GLOBALTID]];
+    if (instNum_ >= 0)
+      return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+    else
+      return elmnts_[dev_crnt_[GLOBALTID]];
   } else {
     if (size_ > 0)
       crnt_ = size_ - 1;
     else
       return NULL;
 
-    return elmnts_[crnt_];
+    if (instNum_ >= 0)
+      return elmnts_[lstLngth_*crnt_ + instNum_];
+    else
+      return elmnts_[crnt_];
   }
 #else
   if (size_ > 0)
@@ -603,7 +728,10 @@ T ArrayList<T>::GetLastElmnt() {
   else
     return NULL;
   
-  return elmnts_[crnt_];
+  if (instNum_ >= 0)
+    return elmnts_[lstLngth_*crnt_ + instNum_];
+  else
+    return elmnts_[crnt_];
 #endif
 }
 
@@ -639,16 +767,28 @@ void ArrayList<T>::RmvCrntElmnt() {
   assert(crnt_ != -1);
   assert(size_ > 0);
   size_--;
-  for (int i = crnt_; i < size_; i++)
-    elmnts_[i] = elmnts_[i + 1];
+  if (instNum_ >= 0) {
+    for (int i = crnt_; i < size_; i++)
+      elmnts_[lstLngth_*i + instNum_] = elmnts_[lstLngth_*(i + 1) + instNum_];
+  } else {
+    for (int i = crnt_; i < size_; i++)
+      elmnts_[i] = elmnts_[i + 1];
+  }
 }
 
 template <typename T>
 __host__ __device__
 bool ArrayList<T>::FindElmnt(const T element, int &hitCnt) const {
-  for (int i = 0; i < size_; i++) {
-    if (element == elmnts_[i])
-      hitCnt++;
+  if (instNum_ >= 0) {
+    for (int i = 0; i < size_; i++) {
+      if (element == elmnts_[lstLngth_*i + instNum_])
+        hitCnt++;
+    }
+  } else {
+    for (int i = 0; i < size_; i++) {
+      if (element == elmnts_[i])
+        hitCnt++;
+    }
   }
   return hitCnt > 0 ? true : false;
 }
@@ -657,15 +797,27 @@ template <typename T>
 __host__ __device__
 void ArrayList<T>::RmvElmnt(T elmnt) {
   int elmntIndx;
-  for (int i = 0; i < size_; i++) {
-    if (elmnts_[i] == elmnt) {
-      elmntIndx = i;
-      break;
+  if (instNum_ >= 0) {
+    for (int i = 0; i < size_; i++) {
+      if (elmnts_[lstLngth_*i + instNum_] == elmnt) {
+        elmntIndx = i;
+        break;
+      }
     }
+    size_--;
+    for (int i = elmntIndx; i < size_; i++)
+      elmnts_[lstLngth_*i + instNum_] = elmnts_[lstLngth_*(i + 1) + instNum_];
+  } else {
+    for (int i = 0; i < size_; i++) {
+      if (elmnts_[i] == elmnt) {
+        elmntIndx = i;
+        break;
+      }
+    }
+    size_--;
+    for (int i = elmntIndx; i < size_; i++)
+      elmnts_[i] = elmnts_[i + 1];
   }
-  size_--;
-  for (int i = elmntIndx; i < size_; i++)
-    elmnts_[i] = elmnts_[i + 1];
 }
 
 template <typename T>
@@ -694,61 +846,118 @@ PriorityArrayList<T,K>::~PriorityArrayList() {
 template <typename T, typename K>
 __host__ __device__
 void PriorityArrayList<T,K>::InsrtElmnt(T elmnt, K key, bool allowDplct) {
-  // Array is full
-  if (ArrayList<T>::size_ == ArrayList<T>::maxSize_)
-    return;
-	
-  if (ArrayList<T>::size_ == 0) {
-    ArrayList<T>::elmnts_[ArrayList<T>::size_] = elmnt;
-    keys_[ArrayList<T>::size_] = key;
-    ArrayList<T>::size_++;
-    return;
-  }
-  if (allowDplct) { // Do reverse insertion
-    for (int i = ArrayList<T>::size_ - 1; i > -2; i--) {
-      if (i == -1 || keys_[i] >= key) {
-        ArrayList<T>::elmnts_[i + 1] = elmnt;
-        keys_[i + 1] = key;
-        ArrayList<T>::size_++;
-        break;
-      }
-      ArrayList<T>::elmnts_[i + 1] = ArrayList<T>::elmnts_[i];
-      keys_[i + 1] = keys_[i];
-    }
-  } else {  // Do regular insert so we can scan for duplicates before shifting
-    int indx;
-    bool foundDplct = false;
-
-    for (indx = 0; indx < ArrayList<T>::size_; indx++) {
-      if (keys_[indx] <= key) {
-        foundDplct = (keys_[indx] == key);
-        break;
-      }
-    }
-
-    if (!allowDplct && foundDplct)
+  if (instNum_ >= 0) {
+    // Array is full
+    if (ArrayList2D<T>::size_ == ArrayList2D<T>::maxSize_)
       return;
-
-    // if indx != size_ we must move all entries at and after indx to make
-    // space for new elmnt
-    if (indx != ArrayList<T>::size_) {
-      for (int i = ArrayList<T>::size_; i > indx; i--) {
-        ArrayList<T>::elmnts_[i] = ArrayList<T>::elmnts_[i - 1];
-        keys_[i] = keys_[i - 1];
-      }
+    
+    if (ArrayList2D<T>::size_ == 0) {
+      ArrayList2D<T>::elmnts_[lstLngth_*ArrayList2D<T>::size_ + instNum_] = elmnt;
+      keys_[lstLngth_*ArrayList2D<T>::size_ + instNum_] = key;
+      ArrayList2D<T>::size_++;
+      return;
     }
+    if (allowDplct) { // Do reverse insertion
+      for (int i = ArrayList2D<T>::size_ - 1; i > -2; i--) {
+        if (i == -1 || keys_[lstLngth_*i + instNum_] >= key) {
+          ArrayList2D<T>::elmnts_[lstLngth_*(i + 1) + instNum_] = elmnt;
+          keys_[lstLngth_*(i + 1) + instNum_] = key;
+          ArrayList2D<T>::size_++;
+          break;
+        }
+        ArrayList2D<T>::elmnts_[lstLngth_*(i + 1) + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_];
+        keys_[lstLngth_*(i + 1) + instNum_] = keys_[lstLngth_*i + instNum_];
+      }
+    } else {  // Do regular insert so we can scan for duplicates before shifting
+      int indx;
+      bool foundDplct = false;
 
-    ArrayList<T>::elmnts_[indx] = elmnt;
-    keys_[indx] = key;
-    ArrayList<T>::size_++;
+      for (indx = 0; indx < ArrayList2D<T>::size_; indx++) {
+        if (keys_[lstLngth_*indx + instNum_] <= key) {
+          foundDplct = (keys_[lstLngth_*indx + instNum_] == key);
+          break;
+        }
+      }
+
+      if (!allowDplct && foundDplct)
+        return;
+
+      // if indx != size_ we must move all entries at and after indx to make
+      // space for new elmnt
+      if (indx != ArrayList2D<T>::size_) {
+        for (int i = ArrayList2D<T>::size_; i > indx; i--) {
+          ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*(i - 1) + instNum_];
+          keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i - 1) + instNum_];
+        }
+      }
+
+      ArrayList2D<T>::elmnts_[lstLngth_*indx + instNum_] = elmnt;
+      keys_[lstLngth_*indx + instNum_] = key;
+      ArrayList2D<T>::size_++;
+    }
+  } else {
+    // Array is full
+    if (ArrayList<T>::size_ == ArrayList<T>::maxSize_)
+      return;
+    
+    if (ArrayList<T>::size_ == 0) {
+      ArrayList<T>::elmnts_[ArrayList<T>::size_] = elmnt;
+      keys_[ArrayList<T>::size_] = key;
+      ArrayList<T>::size_++;
+      return;
+    }
+    if (allowDplct) { // Do reverse insertion
+      for (int i = ArrayList<T>::size_ - 1; i > -2; i--) {
+        if (i == -1 || keys_[i] >= key) {
+          ArrayList<T>::elmnts_[i + 1] = elmnt;
+          keys_[i + 1] = key;
+          ArrayList<T>::size_++;
+          break;
+        }
+        ArrayList<T>::elmnts_[i + 1] = ArrayList<T>::elmnts_[i];
+        keys_[i + 1] = keys_[i];
+      }
+    } else {  // Do regular insert so we can scan for duplicates before shifting
+      int indx;
+      bool foundDplct = false;
+
+      for (indx = 0; indx < ArrayList<T>::size_; indx++) {
+        if (keys_[indx] <= key) {
+          foundDplct = (keys_[indx] == key);
+          break;
+        }
+      }
+
+      if (!allowDplct && foundDplct)
+        return;
+
+      // if indx != size_ we must move all entries at and after indx to make
+      // space for new elmnt
+      if (indx != ArrayList<T>::size_) {
+        for (int i = ArrayList<T>::size_; i > indx; i--) {
+          ArrayList<T>::elmnts_[i] = ArrayList<T>::elmnts_[i - 1];
+          keys_[i] = keys_[i - 1];
+        }
+      }
+
+      ArrayList<T>::elmnts_[indx] = elmnt;
+      keys_[indx] = key;
+      ArrayList<T>::size_++;
+    }
   }
 }
 
 template <typename T, typename K>
 __host__ __device__
 void PriorityArrayList<T,K>::CopyList(PriorityArrayList<T,K> *otherLst) {
-  for (int i = 0; i < otherLst->size_; i++) {
-    InsrtElmnt(otherLst->elmnts_[i], otherLst->keys_[i], true);
+  if (instNum_ >= 0) {
+    for (int i = 0; i < otherLst->size_; i++) {
+      InsrtElmnt(otherLst->elmnts_[lstLngth_*i + instNum_], otherLst->keys_[lstLngth_*i + instNum_], true);
+    }
+  } else {
+    for (int i = 0; i < otherLst->size_; i++) {
+      InsrtElmnt(otherLst->elmnts_[i], otherLst->keys_[i], true);
+    }
   }
 }
 
@@ -758,9 +967,16 @@ void PriorityArrayList<T,K>::RmvCrntElmnt() {
   assert(ArrayList<T>::crnt_ != -1);
   assert(ArrayList<T>::size_ > 0);
   ArrayList<T>::size_--;
-  for (int i = ArrayList<T>::crnt_; i < ArrayList<T>::size_; i++) {
-    ArrayList<T>::elmnts_[i] = ArrayList<T>::elmnts_[i + 1];
-    keys_[i] = keys_[i + 1];
+  if (instNum_ >= 0) {
+    for (int i = ArrayList2D<T>::crnt_; i < ArrayList2D<T>::size_; i++) {
+      ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*(i + 1) + instNum_];
+      keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i + 1) + instNum_];
+    }
+  } else {
+    for (int i = ArrayList<T>::crnt_; i < ArrayList<T>::size_; i++) {
+      ArrayList<T>::elmnts_[i] = ArrayList<T>::elmnts_[i + 1];
+      keys_[i] = keys_[i + 1];
+    }
   }
 }
 
@@ -769,53 +985,105 @@ __host__ __device__
 void PriorityArrayList<T,K>::BoostElmnt(T elmnt, K newKey) {
   int elmntIndx = -1;
   int newIndx;
-  // FindElmnt
-  for (int i = 0; i < ArrayList<T>::size_; i++) {
-    if (elmnt == ArrayList<T>::elmnts_[i]) {
-      elmntIndx = i;
-      break;
+  if (instNum_ >= 0) {
+    // FindElmnt
+    for (int i = 0; i < ArrayList2D<T>::size_; i++) {
+      if (elmnt == ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_]) {
+        elmntIndx = i;
+        break;
+      }
     }
-  }
 
-  if (elmntIndx != -1) {
-    if (keys_[elmntIndx] < newKey) {
-      // if elmnt is already at the top or its prev elmnt still has a 
-      // higher key, it is already in place
-      if (elmntIndx == 0 || keys_[elmntIndx - 1] >= newKey)
-        return;
+    if (elmntIndx != -1) {
+      if (keys_[lstLngth_*elmntIndx + instNum_] < newKey) {
+        // if elmnt is already at the top or its prev elmnt still has a 
+        // higher key, it is already in place
+        if (elmntIndx == 0 || keys_[lstLngth_*(elmntIndx - 1) + instNum_] >= newKey)
+          return;
 
-      newIndx = elmntIndx;
+        newIndx = elmntIndx;
 
-      while (newIndx != 0 && keys_[newIndx - 1] < newKey)
-        newIndx--;
+        while (newIndx != 0 && keys_[lstLngth_*(newIndx - 1) + instNum_] < newKey)
+          newIndx--;
 
-      for (int i = elmntIndx; i > newIndx; i--) {
-        ArrayList<T>::elmnts_[i] = ArrayList<T>::elmnts_[i - 1];
-        keys_[i] = keys_[i - 1];
+        for (int i = elmntIndx; i > newIndx; i--) {
+          ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*(i - 1) + instNum_];
+          keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i - 1) + instNum_];
+        }
+
+        ArrayList2D<T>::elmnts_[lstLngth_*newIndx + instNum_] = elmnt;
+        keys_[lstLngth_*newIndx + instNum_] = newKey;
+      } else if (keys_[lstLngth_*elmntIndx + instNum_] < newKey) {
+        // if elmnt is already at the bottom or next elmnt still has
+        // a lower key, it is already in place
+        if (elmntIndx == ArrayList2D<T>::size_ - 1 || 
+      keys_[lstLngth_*(elmntIndx + 1) + instNum_] <= newKey)
+          return;
+
+        newIndx = elmntIndx;
+
+        while (newIndx != ArrayList2D<T>::size_ - 1 && 
+        keys_[lstLngth_*(newIndx + 1) + instNum_] > newKey)
+          newIndx++;
+
+        for (int i = elmntIndx; i < newIndx; i++) {
+          ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*(i + 1) + instNum_];
+          keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i + 1 + instNum_];
+        }
+
+        ArrayList2D<T>::elmnts_[lstLngth_*newIndx + instNum_] = elmnt;
+        keys_[lstLngth_*newIndx + instNum_] = newKey;
       }
-
-      ArrayList<T>::elmnts_[newIndx] = elmnt;
-      keys_[newIndx] = newKey;
-    } else if (keys_[elmntIndx] < newKey) {
-      // if elmnt is already at the bottom or next elmnt still has
-      // a lower key, it is already in place
-      if (elmntIndx == ArrayList<T>::size_ - 1 || 
-	  keys_[elmntIndx + 1] <= newKey)
-        return;
-
-      newIndx = elmntIndx;
-
-      while (newIndx != ArrayList<T>::size_ - 1 && 
-	     keys_[newIndx + 1] > newKey)
-        newIndx++;
-
-      for (int i = elmntIndx; i < newIndx; i++) {
-        ArrayList<T>::elmnts_[i] = ArrayList<T>::elmnts_[i + 1];
-        keys_[i] = keys_[i + 1];
+    }
+  } else {
+    // FindElmnt
+    for (int i = 0; i < ArrayList<T>::size_; i++) {
+      if (elmnt == ArrayList<T>::elmnts_[i]) {
+        elmntIndx = i;
+        break;
       }
+    }
 
-      ArrayList<T>::elmnts_[newIndx] = elmnt;
-      keys_[newIndx] = newKey;
+    if (elmntIndx != -1) {
+      if (keys_[elmntIndx] < newKey) {
+        // if elmnt is already at the top or its prev elmnt still has a 
+        // higher key, it is already in place
+        if (elmntIndx == 0 || keys_[elmntIndx - 1] >= newKey)
+          return;
+
+        newIndx = elmntIndx;
+
+        while (newIndx != 0 && keys_[newIndx - 1] < newKey)
+          newIndx--;
+
+        for (int i = elmntIndx; i > newIndx; i--) {
+          ArrayList<T>::elmnts_[i] = ArrayList<T>::elmnts_[i - 1];
+          keys_[i] = keys_[i - 1];
+        }
+
+        ArrayList<T>::elmnts_[newIndx] = elmnt;
+        keys_[newIndx] = newKey;
+      } else if (keys_[elmntIndx] < newKey) {
+        // if elmnt is already at the bottom or next elmnt still has
+        // a lower key, it is already in place
+        if (elmntIndx == ArrayList<T>::size_ - 1 || 
+      keys_[elmntIndx + 1] <= newKey)
+          return;
+
+        newIndx = elmntIndx;
+
+        while (newIndx != ArrayList<T>::size_ - 1 && 
+        keys_[newIndx + 1] > newKey)
+          newIndx++;
+
+        for (int i = elmntIndx; i < newIndx; i++) {
+          ArrayList<T>::elmnts_[i] = ArrayList<T>::elmnts_[i + 1];
+          keys_[i] = keys_[i + 1];
+        }
+
+        ArrayList<T>::elmnts_[newIndx] = elmnt;
+        keys_[newIndx] = newKey;
+      }
     }
   }
 }
