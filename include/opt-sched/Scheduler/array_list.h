@@ -5,7 +5,7 @@
 // and device and contains methods to copy to device
 
 // (Josh) For scsr and prdcsr lists on the device, instNum_ is used to index
-// into the linearized 2D ArrayList of elmnts_. Otherwise if instNum_ is -1
+// into the linearized  ArrayList of elmnts_. Otherwise if instNum_ is -1
 // the elmnts_ array is accessed normally
 
 #define END -1
@@ -848,31 +848,31 @@ __host__ __device__
 void PriorityArrayList<T,K>::InsrtElmnt(T elmnt, K key, bool allowDplct) {
   if (instNum_ >= 0) {
     // Array is full
-    if (ArrayList2D<T>::size_ == ArrayList2D<T>::maxSize_)
+    if (ArrayList<T>::size_ == ArrayList<T>::maxSize_)
       return;
     
-    if (ArrayList2D<T>::size_ == 0) {
-      ArrayList2D<T>::elmnts_[lstLngth_*ArrayList2D<T>::size_ + instNum_] = elmnt;
-      keys_[lstLngth_*ArrayList2D<T>::size_ + instNum_] = key;
-      ArrayList2D<T>::size_++;
+    if (ArrayList<T>::size_ == 0) {
+      ArrayList<T>::elmnts_[lstLngth_*ArrayList<T>::size_ + instNum_] = elmnt;
+      keys_[lstLngth_*ArrayList<T>::size_ + instNum_] = key;
+      ArrayList<T>::size_++;
       return;
     }
     if (allowDplct) { // Do reverse insertion
-      for (int i = ArrayList2D<T>::size_ - 1; i > -2; i--) {
+      for (int i = ArrayList<T>::size_ - 1; i > -2; i--) {
         if (i == -1 || keys_[lstLngth_*i + instNum_] >= key) {
-          ArrayList2D<T>::elmnts_[lstLngth_*(i + 1) + instNum_] = elmnt;
+          ArrayList<T>::elmnts_[lstLngth_*(i + 1) + instNum_] = elmnt;
           keys_[lstLngth_*(i + 1) + instNum_] = key;
-          ArrayList2D<T>::size_++;
+          ArrayList<T>::size_++;
           break;
         }
-        ArrayList2D<T>::elmnts_[lstLngth_*(i + 1) + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_];
+        ArrayList<T>::elmnts_[lstLngth_*(i + 1) + instNum_] = ArrayList<T>::elmnts_[lstLngth_*i + instNum_];
         keys_[lstLngth_*(i + 1) + instNum_] = keys_[lstLngth_*i + instNum_];
       }
     } else {  // Do regular insert so we can scan for duplicates before shifting
       int indx;
       bool foundDplct = false;
 
-      for (indx = 0; indx < ArrayList2D<T>::size_; indx++) {
+      for (indx = 0; indx < ArrayList<T>::size_; indx++) {
         if (keys_[lstLngth_*indx + instNum_] <= key) {
           foundDplct = (keys_[lstLngth_*indx + instNum_] == key);
           break;
@@ -884,16 +884,16 @@ void PriorityArrayList<T,K>::InsrtElmnt(T elmnt, K key, bool allowDplct) {
 
       // if indx != size_ we must move all entries at and after indx to make
       // space for new elmnt
-      if (indx != ArrayList2D<T>::size_) {
-        for (int i = ArrayList2D<T>::size_; i > indx; i--) {
-          ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*(i - 1) + instNum_];
+      if (indx != ArrayList<T>::size_) {
+        for (int i = ArrayList<T>::size_; i > indx; i--) {
+          ArrayList<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i - 1) + instNum_];
           keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i - 1) + instNum_];
         }
       }
 
-      ArrayList2D<T>::elmnts_[lstLngth_*indx + instNum_] = elmnt;
+      ArrayList<T>::elmnts_[lstLngth_*indx + instNum_] = elmnt;
       keys_[lstLngth_*indx + instNum_] = key;
-      ArrayList2D<T>::size_++;
+      ArrayList<T>::size_++;
     }
   } else {
     // Array is full
@@ -968,8 +968,8 @@ void PriorityArrayList<T,K>::RmvCrntElmnt() {
   assert(ArrayList<T>::size_ > 0);
   ArrayList<T>::size_--;
   if (instNum_ >= 0) {
-    for (int i = ArrayList2D<T>::crnt_; i < ArrayList2D<T>::size_; i++) {
-      ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*(i + 1) + instNum_];
+    for (int i = ArrayList<T>::crnt_; i < ArrayList<T>::size_; i++) {
+      ArrayList<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i + 1) + instNum_];
       keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i + 1) + instNum_];
     }
   } else {
@@ -987,8 +987,8 @@ void PriorityArrayList<T,K>::BoostElmnt(T elmnt, K newKey) {
   int newIndx;
   if (instNum_ >= 0) {
     // FindElmnt
-    for (int i = 0; i < ArrayList2D<T>::size_; i++) {
-      if (elmnt == ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_]) {
+    for (int i = 0; i < ArrayList<T>::size_; i++) {
+      if (elmnt == ArrayList<T>::elmnts_[lstLngth_*i + instNum_]) {
         elmntIndx = i;
         break;
       }
@@ -1007,31 +1007,31 @@ void PriorityArrayList<T,K>::BoostElmnt(T elmnt, K newKey) {
           newIndx--;
 
         for (int i = elmntIndx; i > newIndx; i--) {
-          ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*(i - 1) + instNum_];
+          ArrayList<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i - 1) + instNum_];
           keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i - 1) + instNum_];
         }
 
-        ArrayList2D<T>::elmnts_[lstLngth_*newIndx + instNum_] = elmnt;
+        ArrayList<T>::elmnts_[lstLngth_*newIndx + instNum_] = elmnt;
         keys_[lstLngth_*newIndx + instNum_] = newKey;
       } else if (keys_[lstLngth_*elmntIndx + instNum_] < newKey) {
         // if elmnt is already at the bottom or next elmnt still has
         // a lower key, it is already in place
-        if (elmntIndx == ArrayList2D<T>::size_ - 1 || 
+        if (elmntIndx == ArrayList<T>::size_ - 1 || 
       keys_[lstLngth_*(elmntIndx + 1) + instNum_] <= newKey)
           return;
 
         newIndx = elmntIndx;
 
-        while (newIndx != ArrayList2D<T>::size_ - 1 && 
+        while (newIndx != ArrayList<T>::size_ - 1 && 
         keys_[lstLngth_*(newIndx + 1) + instNum_] > newKey)
           newIndx++;
 
         for (int i = elmntIndx; i < newIndx; i++) {
-          ArrayList2D<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList2D<T>::elmnts_[lstLngth_*(i + 1) + instNum_];
+          ArrayList<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i + 1) + instNum_];
           keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i + 1 + instNum_];
         }
 
-        ArrayList2D<T>::elmnts_[lstLngth_*newIndx + instNum_] = elmnt;
+        ArrayList<T>::elmnts_[lstLngth_*newIndx + instNum_] = elmnt;
         keys_[lstLngth_*newIndx + instNum_] = newKey;
       }
     }
