@@ -852,29 +852,29 @@ void PriorityArrayList<T,K>::InsrtElmnt(T elmnt, K key, bool allowDplct) {
       return;
     
     if (ArrayList<T>::size_ == 0) {
-      ArrayList<T>::elmnts_[lstLngth_*ArrayList<T>::size_ + instNum_] = elmnt;
-      keys_[lstLngth_*ArrayList<T>::size_ + instNum_] = key;
+      ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*ArrayList<T>::size_ + ArrayList<T>::instNum_] = elmnt;
+      keys_[ArrayList<T>::lstLngth_*ArrayList<T>::size_ + ArrayList<T>::instNum_] = key;
       ArrayList<T>::size_++;
       return;
     }
     if (allowDplct) { // Do reverse insertion
       for (int i = ArrayList<T>::size_ - 1; i > -2; i--) {
-        if (i == -1 || keys_[lstLngth_*i + instNum_] >= key) {
-          ArrayList<T>::elmnts_[lstLngth_*(i + 1) + instNum_] = elmnt;
-          keys_[lstLngth_*(i + 1) + instNum_] = key;
+        if (i == -1 || keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] >= key) {
+          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_] = elmnt;
+          keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_] = key;
           ArrayList<T>::size_++;
           break;
         }
-        ArrayList<T>::elmnts_[lstLngth_*(i + 1) + instNum_] = ArrayList<T>::elmnts_[lstLngth_*i + instNum_];
-        keys_[lstLngth_*(i + 1) + instNum_] = keys_[lstLngth_*i + instNum_];
+        ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_];
+        keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_];
       }
     } else {  // Do regular insert so we can scan for duplicates before shifting
       int indx;
       bool foundDplct = false;
 
       for (indx = 0; indx < ArrayList<T>::size_; indx++) {
-        if (keys_[lstLngth_*indx + instNum_] <= key) {
-          foundDplct = (keys_[lstLngth_*indx + instNum_] == key);
+        if (keys_[ArrayList<T>::lstLngth_*indx + ArrayList<T>::instNum_] <= key) {
+          foundDplct = (keys_[ArrayList<T>::lstLngth_*indx + ArrayList<T>::instNum_] == key);
           break;
         }
       }
@@ -886,13 +886,13 @@ void PriorityArrayList<T,K>::InsrtElmnt(T elmnt, K key, bool allowDplct) {
       // space for new elmnt
       if (indx != ArrayList<T>::size_) {
         for (int i = ArrayList<T>::size_; i > indx; i--) {
-          ArrayList<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i - 1) + instNum_];
-          keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i - 1) + instNum_];
+          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i - 1) + ArrayList<T>::instNum_];
+          keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i - 1) + ArrayList<T>::instNum_];
         }
       }
 
-      ArrayList<T>::elmnts_[lstLngth_*indx + instNum_] = elmnt;
-      keys_[lstLngth_*indx + instNum_] = key;
+      ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*indx + ArrayList<T>::instNum_] = elmnt;
+      keys_[ArrayList<T>::lstLngth_*indx + ArrayList<T>::instNum_] = key;
       ArrayList<T>::size_++;
     }
   } else {
@@ -952,7 +952,7 @@ __host__ __device__
 void PriorityArrayList<T,K>::CopyList(PriorityArrayList<T,K> *otherLst) {
   if (instNum_ >= 0) {
     for (int i = 0; i < otherLst->size_; i++) {
-      InsrtElmnt(otherLst->elmnts_[lstLngth_*i + instNum_], otherLst->keys_[lstLngth_*i + instNum_], true);
+      InsrtElmnt(otherLst->elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_], otherLst->keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_], true);
     }
   } else {
     for (int i = 0; i < otherLst->size_; i++) {
@@ -969,8 +969,8 @@ void PriorityArrayList<T,K>::RmvCrntElmnt() {
   ArrayList<T>::size_--;
   if (instNum_ >= 0) {
     for (int i = ArrayList<T>::crnt_; i < ArrayList<T>::size_; i++) {
-      ArrayList<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i + 1) + instNum_];
-      keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i + 1) + instNum_];
+      ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
+      keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
     }
   } else {
     for (int i = ArrayList<T>::crnt_; i < ArrayList<T>::size_; i++) {
@@ -988,51 +988,51 @@ void PriorityArrayList<T,K>::BoostElmnt(T elmnt, K newKey) {
   if (instNum_ >= 0) {
     // FindElmnt
     for (int i = 0; i < ArrayList<T>::size_; i++) {
-      if (elmnt == ArrayList<T>::elmnts_[lstLngth_*i + instNum_]) {
+      if (elmnt == ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_]) {
         elmntIndx = i;
         break;
       }
     }
 
     if (elmntIndx != -1) {
-      if (keys_[lstLngth_*elmntIndx + instNum_] < newKey) {
+      if (keys_[ArrayList<T>::lstLngth_*elmntIndx + ArrayList<T>::instNum_] < newKey) {
         // if elmnt is already at the top or its prev elmnt still has a 
         // higher key, it is already in place
-        if (elmntIndx == 0 || keys_[lstLngth_*(elmntIndx - 1) + instNum_] >= newKey)
+        if (elmntIndx == 0 || keys_[ArrayList<T>::lstLngth_*(elmntIndx - 1) + ArrayList<T>::instNum_] >= newKey)
           return;
 
         newIndx = elmntIndx;
 
-        while (newIndx != 0 && keys_[lstLngth_*(newIndx - 1) + instNum_] < newKey)
+        while (newIndx != 0 && keys_[ArrayList<T>::lstLngth_*(newIndx - 1) + ArrayList<T>::instNum_] < newKey)
           newIndx--;
 
         for (int i = elmntIndx; i > newIndx; i--) {
-          ArrayList<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i - 1) + instNum_];
-          keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i - 1) + instNum_];
+          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i - 1) + ArrayList<T>::instNum_];
+          keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i - 1) + ArrayList<T>::instNum_];
         }
 
-        ArrayList<T>::elmnts_[lstLngth_*newIndx + instNum_] = elmnt;
-        keys_[lstLngth_*newIndx + instNum_] = newKey;
-      } else if (keys_[lstLngth_*elmntIndx + instNum_] < newKey) {
+        ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*newIndx + ArrayList<T>::instNum_] = elmnt;
+        keys_[ArrayList<T>::lstLngth_*newIndx + ArrayList<T>::instNum_] = newKey;
+      } else if (keys_[ArrayList<T>::lstLngth_*elmntIndx + ArrayList<T>::instNum_] < newKey) {
         // if elmnt is already at the bottom or next elmnt still has
         // a lower key, it is already in place
         if (elmntIndx == ArrayList<T>::size_ - 1 || 
-      keys_[lstLngth_*(elmntIndx + 1) + instNum_] <= newKey)
+      keys_[ArrayList<T>::lstLngth_*(elmntIndx + 1) + ArrayList<T>::instNum_] <= newKey)
           return;
 
         newIndx = elmntIndx;
 
         while (newIndx != ArrayList<T>::size_ - 1 && 
-        keys_[lstLngth_*(newIndx + 1) + instNum_] > newKey)
+        keys_[ArrayList<T>::lstLngth_*(newIndx + 1) + ArrayList<T>::instNum_] > newKey)
           newIndx++;
 
         for (int i = elmntIndx; i < newIndx; i++) {
-          ArrayList<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i + 1) + instNum_];
-          keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i + 1) + instNum_];
+          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i + 1) + ArrayList<T>::instNum_];
+          keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
         }
 
-        ArrayList<T>::elmnts_[lstLngth_*newIndx + instNum_] = elmnt;
-        keys_[lstLngth_*newIndx + instNum_] = newKey;
+        ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*newIndx + ArrayList<T>::instNum_] = elmnt;
+        keys_[ArrayList<T>::lstLngth_*newIndx + ArrayList<T>::instNum_] = newKey;
       }
     }
   } else {
