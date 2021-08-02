@@ -3710,16 +3710,16 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
   int maxScsrLstLngth = 0;
   int maxPrdcsrLstLngth = 0;
   for (InstCount i = 0; i < instCnt_; i++) {
-    maxScsrLstLngth = insts_[i]->GetScsrCnt() > maxScsrLstLngth ? insts_[i]->GetScsrCnt() : maxScsrLstLngth;
-    maxPrdcsrLstLngth = insts_[i]->GetPrdcsrCnt() > maxPrdcsrLstLngth ? insts_[i]->GetPrdcsrCnt() : maxPrdcsrLstLngth;
+    maxScsrLstLngth = insts_[i].GetScsrCnt() > maxScsrLstLngth ? insts_[i].GetScsrCnt() : maxScsrLstLngth;
+    maxPrdcsrLstLngth = insts_[i].GetPrdcsrCnt() > maxPrdcsrLstLngth ? insts_[i].GetPrdcsrCnt() : maxPrdcsrLstLngth;
   }
   // array list will contain some empty spots, but will be large enough
-  GraphEdge *dev_scsrElmnts;
-  memSize = sizeof(SchedInstruction *) * instCnt_ * maxScsrLstLngth;
+  GraphEdge **dev_scsrElmnts;
+  memSize = sizeof(SchedInstruction **) * instCnt_ * maxScsrLstLngth;
   gpuErrchk(cudaMallocManaged(&dev_scsrElmnts, memSize));
 
-  GraphEdge *dev_prdcsrElmnts;
-  memSize = sizeof(SchedInstruction *) * instCnt_ * maxPrdcsrLstLngth;
+  GraphEdge **dev_prdcsrElmnts;
+  memSize = sizeof(SchedInstruction **) * instCnt_ * maxPrdcsrLstLngth;
   gpuErrchk(cudaMallocManaged(&dev_prdcsrElmnts, memSize));
 
   unsigned long *dev_keys;

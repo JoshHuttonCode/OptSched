@@ -1069,11 +1069,16 @@ void SchedInstruction::CreateSchedRange() {
 
 void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
                                             GraphNode **dev_nodes,
-					    InstCount instCnt, 
-					    RegisterFile *dev_regFiles,
+					                                  InstCount instCnt, 
+					                                  RegisterFile *dev_regFiles,
                                             int numThreads, 
                                             std::vector<GraphEdge *> *edges,
-                                            GraphEdge *dev_edges) {
+                                            GraphEdge *dev_edges, 
+                                            GraphNode **dev_scsrElmnts, 
+                                            int maxScsrLstLngth,
+                                            GraphNode **dev_prdcsrElmnts, 
+                                            int maxPrdcsrLstLngth,
+                                            unsigned long *dev_keys) {
   dev_inst->RegFiles_ = dev_regFiles;
   size_t memSize;
   memSize = sizeof(InstCount) * prdcsrCnt_;
@@ -1093,10 +1098,10 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
   gpuErrchk(cudaMemcpy(&dev_inst->crntRange_, &dev_crntRange,
 		       sizeof(SchedRange *), cudaMemcpyHostToDevice));
   // Copy sortedScsrLst_
-  InstCount *dev_elmnts;
-  unsigned long *dev_keys;
   GraphNode::CopyPointersToDevice((GraphNode *)dev_inst, dev_nodes, instCnt,
-                                  edges, dev_edges);
+                                  edges, dev_edges, dev_scsrElmnts, maxScsrLstLngth,
+                                  dev_prdcsrElmnts, maxPrdcsrLstLngth,
+                                  dev_keys);
   // make sure managed mem is copied to device before kernel start
   memSize = sizeof(InstCount *) * numThreads;
   gpuErrchk(cudaMemPrefetchAsync(dev_rdyCyclePerPrdcsr_, memSize, 0));

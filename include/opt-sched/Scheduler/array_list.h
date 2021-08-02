@@ -189,7 +189,7 @@ class ArrayList<int> {
   
         if (crnt_ < size_) {
           if (instNum_ >= 0)
-            return elmnts_[lstLngth_*crnt_ + instNum_] = elmnt;
+            return elmnts_[lstLngth_*crnt_ + instNum_];
           else
             return elmnts_[crnt_];
         } else
@@ -1028,7 +1028,7 @@ void PriorityArrayList<T,K>::BoostElmnt(T elmnt, K newKey) {
 
         for (int i = elmntIndx; i < newIndx; i++) {
           ArrayList<T>::elmnts_[lstLngth_*i + instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i + 1) + instNum_];
-          keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i + 1 + instNum_];
+          keys_[lstLngth_*i + instNum_] = keys_[lstLngth_*(i + 1) + instNum_];
         }
 
         ArrayList<T>::elmnts_[lstLngth_*newIndx + instNum_] = elmnt;
