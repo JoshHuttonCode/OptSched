@@ -374,23 +374,23 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
                                      InstCount instCnt, 
                                      std::vector<GraphEdge *> *edges,
                                      GraphEdge *dev_edges,
-                                     GraphNode **dev_scsrElmnts, int maxScsrLstLngth,
-                                     GraphNode **dev_prdcsrElmnts, int maxPrdcsrLstLngth,
+                                     GraphEdge **dev_scsrElmnts, int maxScsrLstLngth,
+                                     GraphEdge **dev_prdcsrElmnts, int maxPrdcsrLstLngth,
                                      unsigned long *dev_keys) {
   size_t memSize;
   int index;
   void *ptrToEdge;
   // Copy scsrLst_ to device
   PriorityArrayList<GraphEdge *> *dev_scsrLst;
-  // set instNum_ and lstLngth_ for linearized 2D array indexing
-  dev_scsrLst->instNum_ = this->GetNum();
-  dev_scsrLst->lstLngth_ = maxScsrLstLngth;
   memSize = sizeof(PriorityArrayList<GraphEdge *>);
   gpuErrchk(cudaMallocManaged(&dev_scsrLst, memSize));
   gpuErrchk(cudaMemcpy(dev_scsrLst, scsrLst_, memSize, cudaMemcpyHostToDevice));
   gpuErrchk(cudaMemcpy(&dev_node->scsrLst_, &dev_scsrLst,
 		       sizeof(PriorityArrayList<GraphEdge *> *),
 		       cudaMemcpyHostToDevice));
+  // set instNum_ and lstLngth_ for linearized 2D array indexing
+  dev_scsrLst->instNum_ = this->GetNum();
+  dev_scsrLst->lstLngth_ = maxScsrLstLngth;
   // Copy elmnts_ and keys
   if (scsrLst_->maxSize_ > 0) {
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
@@ -420,9 +420,6 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   gpuErrchk(cudaMemPrefetchAsync(dev_scsrLst, memSize, 0));
   // Copy prdcsrLst_ to device
   ArrayList<GraphEdge *> *dev_prdcsrLst;
-  // set instNum_ and lstLngth_ for linearized 2D array indexing
-  dev_prdcsrLst->instNum_ = this->GetNum();
-  dev_prdcsrLst->lstLngth_ = maxPrdcsrLstLngth;
   memSize = sizeof(ArrayList<GraphEdge *>);
   gpuErrchk(cudaMallocManaged(&dev_prdcsrLst, memSize));
   gpuErrchk(cudaMemcpy(dev_prdcsrLst, prdcsrLst_, memSize,
@@ -430,6 +427,9 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   gpuErrchk(cudaMemcpy(&dev_node->prdcsrLst_, &dev_prdcsrLst,
                        sizeof(ArrayList<GraphEdge *> *),
                        cudaMemcpyHostToDevice));
+  // set instNum_ and lstLngth_ for linearized 2D array indexing
+  dev_prdcsrLst->instNum_ = this->GetNum();
+  dev_prdcsrLst->lstLngth_ = maxPrdcsrLstLngth;
   // Copy elmnts_
   if (prdcsrLst_->maxSize_ > 0) {
     gpuErrchk(cudaMemcpy(&dev_node->prdcsrLst_->elmnts_, &dev_prdcsrElmnts,

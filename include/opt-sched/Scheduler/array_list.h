@@ -846,7 +846,7 @@ PriorityArrayList<T,K>::~PriorityArrayList() {
 template <typename T, typename K>
 __host__ __device__
 void PriorityArrayList<T,K>::InsrtElmnt(T elmnt, K key, bool allowDplct) {
-  if (instNum_ >= 0) {
+  if (ArrayList<T>::instNum_ >= 0) {
     // Array is full
     if (ArrayList<T>::size_ == ArrayList<T>::maxSize_)
       return;
@@ -950,7 +950,7 @@ void PriorityArrayList<T,K>::InsrtElmnt(T elmnt, K key, bool allowDplct) {
 template <typename T, typename K>
 __host__ __device__
 void PriorityArrayList<T,K>::CopyList(PriorityArrayList<T,K> *otherLst) {
-  if (instNum_ >= 0) {
+  if (ArrayList<T>::instNum_ >= 0) {
     for (int i = 0; i < otherLst->size_; i++) {
       InsrtElmnt(otherLst->elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_], otherLst->keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_], true);
     }
@@ -967,7 +967,7 @@ void PriorityArrayList<T,K>::RmvCrntElmnt() {
   assert(ArrayList<T>::crnt_ != -1);
   assert(ArrayList<T>::size_ > 0);
   ArrayList<T>::size_--;
-  if (instNum_ >= 0) {
+  if (ArrayList<T>::instNum_ >= 0) {
     for (int i = ArrayList<T>::crnt_; i < ArrayList<T>::size_; i++) {
       ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
       keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
@@ -985,7 +985,7 @@ __host__ __device__
 void PriorityArrayList<T,K>::BoostElmnt(T elmnt, K newKey) {
   int elmntIndx = -1;
   int newIndx;
-  if (instNum_ >= 0) {
+  if (ArrayList<T>::instNum_ >= 0) {
     // FindElmnt
     for (int i = 0; i < ArrayList<T>::size_; i++) {
       if (elmnt == ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_]) {
@@ -1027,7 +1027,7 @@ void PriorityArrayList<T,K>::BoostElmnt(T elmnt, K newKey) {
           newIndx++;
 
         for (int i = elmntIndx; i < newIndx; i++) {
-          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[lstLngth_*(i + 1) + ArrayList<T>::instNum_];
+          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
           keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
         }
 
