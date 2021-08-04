@@ -3714,10 +3714,10 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
     maxPrdcsrLstLngth = insts_[i].GetPrdcsrCnt() > maxPrdcsrLstLngth ? insts_[i].GetPrdcsrCnt() : maxPrdcsrLstLngth;
   }
   // array list will contain some empty spots, but will be large enough
-  memSize = sizeof(SchedInstruction **) * instCnt_ * maxScsrLstLngth;
+  memSize = sizeof(GraphEdge *) * instCnt_ * maxScsrLstLngth;
   gpuErrchk(cudaMallocManaged(&dev_scsrElmnts_, memSize));
 
-  memSize = sizeof(SchedInstruction **) * instCnt_ * maxPrdcsrLstLngth;
+  memSize = sizeof(GraphEdge *) * instCnt_ * maxPrdcsrLstLngth;
   gpuErrchk(cudaMallocManaged(&dev_prdcsrElmnts_, memSize));
 
   memSize = sizeof(unsigned long) * instCnt_ * maxScsrLstLngth;
@@ -3736,9 +3736,9 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
   gpuErrchk(cudaMemPrefetchAsync(dev_insts, memSize, 0));
   memSize = sizeof(RegisterFile) * machMdl_->GetRegTypeCnt();
   gpuErrchk(cudaMemPrefetchAsync(dev_regFiles, memSize, 0));
-  memSize = sizeof(SchedInstruction *) * instCnt_ * maxScsrLstLngth;
+  memSize = sizeof(GraphEdge *) * instCnt_ * maxScsrLstLngth;
   gpuErrchk(cudaMemPrefetchAsync(dev_scsrElmnts_, memSize, 0));
-  memSize = sizeof(SchedInstruction *) * instCnt_ * maxPrdcsrLstLngth;
+  memSize = sizeof(GraphEdge *) * instCnt_ * maxPrdcsrLstLngth;
   gpuErrchk(cudaMemPrefetchAsync(dev_prdcsrElmnts_, memSize, 0));
   memSize = sizeof(unsigned long) * instCnt_ * maxScsrLstLngth;
   gpuErrchk(cudaMemPrefetchAsync(dev_keys_, memSize, 0));
