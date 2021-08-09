@@ -1075,9 +1075,7 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
                                             std::vector<GraphEdge *> *edges,
                                             GraphEdge *dev_edges, 
                                             GraphEdge **dev_scsrElmnts, 
-                                            int maxScsrLstLngth,
                                             GraphEdge **dev_prdcsrElmnts, 
-                                            int maxPrdcsrLstLngth,
                                             unsigned long *dev_keys) {
   dev_inst->RegFiles_ = dev_regFiles;
   size_t memSize;
