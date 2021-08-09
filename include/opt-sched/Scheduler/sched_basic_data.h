@@ -551,8 +551,7 @@ public:
 		            InstCount instCnt, RegisterFile *dev_regFiles, 
                             int numThreads, std::vector<GraphEdge *> *edges,
                             GraphEdge *dev_edges, GraphEdge **dev_scsrElmnts, 
-                            int maxScsrLstLngth, GraphEdge **dev_prdcsrElmnts, 
-                            int maxPrdcsrLstLngth, unsigned long *dev_keys);
+                            GraphEdge **dev_prdcsrElmnts, unsigned long *dev_keys);
   // Calls cudaFree on all arrays/objects that were allocated with cudaMalloc
   void FreeDevicePointers(int numThreads);
   // Allocates arrays used for storing individual values for each thread in

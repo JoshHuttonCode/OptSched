@@ -3729,8 +3729,8 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
     insts_[i].CopyPointersToDevice(&dev_DDG->insts_[i], dev_DDG->nodes_, 
 		                   instCnt_, dev_regFiles, numThreads,
                                    edges_, dev_edges_,
-                                   dev_scsrElmnts_, maxScsrLstLngth,
-                                   dev_prdcsrElmnts_, maxPrdcsrLstLngth,
+                                   dev_scsrElmnts_,
+                                   dev_prdcsrElmnts_,
                                    dev_keys_);
   memSize = sizeof(SchedInstruction) * instCnt_;
   gpuErrchk(cudaMemPrefetchAsync(dev_insts, memSize, 0));

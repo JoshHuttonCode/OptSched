@@ -6,7 +6,8 @@
 
 // (Josh) For scsr and prdcsr lists on the device, instNum_ is used to index
 // into the linearized  ArrayList of elmnts_. Otherwise if instNum_ is -1
-// the elmnts_ array is accessed normally
+// the elmnts_ array is accessed normally. If storing and accessing elmnts_
+// is done in this manner, always set instNum_ and instCnt_
 
 #define END -1
 #define GLOBALTID blockIdx.x * blockDim.x + threadIdx.x 
@@ -82,7 +83,7 @@ class ArrayList {
     int size_;
     int crnt_;
     int instNum_;
-    int lstLngth_;
+    int instCnt_;
     int *dev_crnt_;
     T *elmnts_;
 };
@@ -140,7 +141,7 @@ class ArrayList<int> {
       size_ = 0;
       crnt_ = 0;
       instNum_ = -1;
-      lstLngth_ = 0;
+      instCnt_ = 0;
       dev_crnt_ = NULL;
       if (maxSize > 0)
         elmnts_ = new int[maxSize_];
@@ -159,7 +160,7 @@ class ArrayList<int> {
     void InsrtElmnt(int elmnt) {
       if (size_ < maxSize_) {
         if (instNum_ >= 0)
-          elmnts_[lstLngth_*size_++ + instNum_] = elmnt;
+          elmnts_[instCnt_*size_++ + instNum_] = elmnt;
         else
           elmnts_[size_++] = elmnt;
       }
@@ -179,7 +180,7 @@ class ArrayList<int> {
 
         if (dev_crnt_[GLOBALTID] < size_) {
           if (instNum_ >= 0)
-            return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+            return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
           else
             return elmnts_[dev_crnt_[GLOBALTID]];
         } else
@@ -189,7 +190,7 @@ class ArrayList<int> {
   
         if (crnt_ < size_) {
           if (instNum_ >= 0)
-            return elmnts_[lstLngth_*crnt_ + instNum_];
+            return elmnts_[instCnt_*crnt_ + instNum_];
           else
             return elmnts_[crnt_];
         } else
@@ -200,7 +201,7 @@ class ArrayList<int> {
   
       if (crnt_ < size_) {
         if (instNum_ >= 0)
-          return elmnts_[lstLngth_*crnt_ + instNum_];
+          return elmnts_[instCnt_*crnt_ + instNum_];
         else
           return elmnts_[crnt_];
       } else
@@ -220,7 +221,7 @@ class ArrayList<int> {
 
         if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0) {
           if (instNum_ >= 0)
-            return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+            return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
           else
             return elmnts_[dev_crnt_[GLOBALTID]];
         } else
@@ -233,7 +234,7 @@ class ArrayList<int> {
 
         if (crnt_ < size_ && crnt_ >= 0) {
           if (instNum_ >= 0)
-            return elmnts_[lstLngth_*crnt_ + instNum_];
+            return elmnts_[instCnt_*crnt_ + instNum_];
           else
             return elmnts_[crnt_];
         } else
@@ -247,7 +248,7 @@ class ArrayList<int> {
 
       if (crnt_ < size_ && crnt_ >= 0) {
         if (instNum_ >= 0)
-          return elmnts_[lstLngth_*crnt_ + instNum_];
+          return elmnts_[instCnt_*crnt_ + instNum_];
         else
           return elmnts_[crnt_];
       } else
@@ -268,7 +269,7 @@ class ArrayList<int> {
 
         if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0) {
           if (instNum_ >= 0)
-            return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+            return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
           else
             return elmnts_[dev_crnt_[GLOBALTID]];
         } else
@@ -283,7 +284,7 @@ class ArrayList<int> {
 
         if (crnt_ < size_ && crnt_ >= 0) {
           if (instNum_ >= 0)
-            return elmnts_[lstLngth_*crnt_ + instNum_];
+            return elmnts_[instCnt_*crnt_ + instNum_];
           else
             return elmnts_[crnt_];
         } else
@@ -299,7 +300,7 @@ class ArrayList<int> {
 
       if (crnt_ < size_ && crnt_ >= 0) {
         if (instNum_ >= 0)
-          return elmnts_[lstLngth_*crnt_ + instNum_];
+          return elmnts_[instCnt_*crnt_ + instNum_];
         else
           return elmnts_[crnt_];
       } else
@@ -319,7 +320,7 @@ class ArrayList<int> {
 
         if (dev_crnt_[GLOBALTID] >= 0 && dev_crnt_[GLOBALTID] < size_) {
           if (instNum_ >= 0)
-            return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+            return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
           else
             return elmnts_[dev_crnt_[GLOBALTID]];
         } else
@@ -332,7 +333,7 @@ class ArrayList<int> {
 
         if (crnt_ >= 0 && crnt_ < size_) {
           if (instNum_ >= 0)
-            return elmnts_[lstLngth_*crnt_ + instNum_];
+            return elmnts_[instCnt_*crnt_ + instNum_];
           else
             return elmnts_[crnt_];
         } else
@@ -346,7 +347,7 @@ class ArrayList<int> {
 
       if (crnt_ >= 0 && crnt_ < size_) {
         if (instNum_ >= 0)
-          return elmnts_[lstLngth_*crnt_ + instNum_];
+          return elmnts_[instCnt_*crnt_ + instNum_];
         else
           return elmnts_[crnt_];
       } else
@@ -365,7 +366,7 @@ class ArrayList<int> {
           return END;
 
         if (instNum_ >= 0)
-          return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+          return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
         else
           return elmnts_[dev_crnt_[GLOBALTID]];
       } else {
@@ -375,7 +376,7 @@ class ArrayList<int> {
           return END;
 
         if (instNum_ >= 0)
-          return elmnts_[lstLngth_*crnt_ + instNum_];
+          return elmnts_[instCnt_*crnt_ + instNum_];
         else
           return elmnts_[crnt_];
       }
@@ -386,7 +387,7 @@ class ArrayList<int> {
 	      return END;
 
       if (instNum_ >= 0)
-        return elmnts_[lstLngth_*crnt_ + instNum_];
+        return elmnts_[instCnt_*crnt_ + instNum_];
       else
         return elmnts_[crnt_];
 #endif
@@ -420,7 +421,7 @@ class ArrayList<int> {
     bool FindElmnt(const int element, int &hitCnt) const {
       if (instNum_ >= 0) {
         for (int i = 0; i < size_; i++) {
-          if (element == elmnts_[lstLngth_*i + instNum_])
+          if (element == elmnts_[instCnt_*i + instNum_])
             hitCnt++;
         }
       } else {
@@ -443,14 +444,14 @@ class ArrayList<int> {
       int elmntIndx;
       if (instNum_ >= 0) {
         for (int i = 0; i < size_; i++) {
-          if (elmnts_[lstLngth_*i + instNum_] == elmnt) {
+          if (elmnts_[instCnt_*i + instNum_] == elmnt) {
             elmntIndx = i;
             break;
           }
         }
         size_--;
         for (int i = elmntIndx; i < size_; i++)
-          elmnts_[lstLngth_*i + instNum_] = elmnts_[lstLngth_*(i + 1) + instNum_];
+          elmnts_[instCnt_*i + instNum_] = elmnts_[instCnt_*(i + 1) + instNum_];
       } else {
         for (int i = 0; i < size_; i++) {
           if (elmnts_[i] == elmnt) {
@@ -468,7 +469,7 @@ class ArrayList<int> {
     int size_;
     int crnt_;
     int instNum_;
-    int lstLngth_;
+    int instCnt_;
     int *dev_crnt_;
     int *elmnts_;
 };
@@ -480,7 +481,7 @@ ArrayList<T>::ArrayList(int maxSize) {
   size_ = 0;
   crnt_ = 0;
   instNum_ = -1;
-  lstLngth_ = 0;
+  instCnt_ = 0;
   dev_crnt_ = NULL;
   if (maxSize > 0)
     elmnts_ = new T[maxSize_];
@@ -500,7 +501,7 @@ __host__ __device__
 void ArrayList<T>::InsrtElmnt(T elmnt) {
   if (size_ < maxSize_) {
     if (instNum_ >= 0)
-      elmnts_[lstLngth_*size_++ + instNum_] = elmnt;
+      elmnts_[instCnt_*size_++ + instNum_] = elmnt;
     else
       elmnts_[size_++] = elmnt;
   }
@@ -521,7 +522,7 @@ T ArrayList<T>::GetFrstElmnt() {
 
     if (dev_crnt_[GLOBALTID] < size_) {
       if (instNum_ >= 0)
-        return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+        return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
       else
         return elmnts_[dev_crnt_[GLOBALTID]];
     } else
@@ -531,7 +532,7 @@ T ArrayList<T>::GetFrstElmnt() {
 
     if (crnt_ < size_) {
       if (instNum_ >= 0)
-        return elmnts_[lstLngth_*crnt_ + instNum_];
+        return elmnts_[instCnt_*crnt_ + instNum_];
       else
         return elmnts_[crnt_];
     } else
@@ -542,7 +543,7 @@ T ArrayList<T>::GetFrstElmnt() {
   
   if (crnt_ < size_) {
     if (instNum_ >= 0)
-      return elmnts_[lstLngth_*crnt_ + instNum_];
+      return elmnts_[instCnt_*crnt_ + instNum_];
     else
       return elmnts_[crnt_];
   } else
@@ -562,7 +563,7 @@ T ArrayList<T>::GetNxtElmnt() {
 
     if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0) {
       if (instNum_ >= 0)
-        return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+        return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
       else
         return elmnts_[dev_crnt_[GLOBALTID]];
     } else
@@ -575,7 +576,7 @@ T ArrayList<T>::GetNxtElmnt() {
 
     if (crnt_ < size_ && crnt_ >= 0) {
       if (instNum_ >= 0)
-        return elmnts_[lstLngth_*crnt_ + instNum_];
+        return elmnts_[instCnt_*crnt_ + instNum_];
       else
         return elmnts_[crnt_];
     } else
@@ -589,7 +590,7 @@ T ArrayList<T>::GetNxtElmnt() {
 
   if (crnt_ < size_ && crnt_ >= 0) {
     if (instNum_ >= 0)
-      return elmnts_[lstLngth_*crnt_ + instNum_];
+      return elmnts_[instCnt_*crnt_ + instNum_];
     else
       return elmnts_[crnt_];
   } else
@@ -611,7 +612,7 @@ T ArrayList<T>::GetNxtElmnt(int &indx) {
 
     if (dev_crnt_[GLOBALTID] < size_ && dev_crnt_[GLOBALTID] >= 0) {
       if (instNum_ >= 0)
-        return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+        return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
       else
         return elmnts_[dev_crnt_[GLOBALTID]];
     } else
@@ -626,7 +627,7 @@ T ArrayList<T>::GetNxtElmnt(int &indx) {
 
     if (crnt_ < size_ && crnt_ >= 0) {
       if (instNum_ >= 0)
-        return elmnts_[lstLngth_*crnt_ + instNum_];
+        return elmnts_[instCnt_*crnt_ + instNum_];
       else
         return elmnts_[crnt_];
     } else
@@ -642,7 +643,7 @@ T ArrayList<T>::GetNxtElmnt(int &indx) {
 
   if (crnt_ < size_ && crnt_ >= 0) {
     if (instNum_ >= 0)
-      return elmnts_[lstLngth_*crnt_ + instNum_];
+      return elmnts_[instCnt_*crnt_ + instNum_];
     else
       return elmnts_[crnt_];
   } else
@@ -662,7 +663,7 @@ T ArrayList<T>::GetPrevElmnt() {
 
     if (dev_crnt_[GLOBALTID] >= 0 && dev_crnt_[GLOBALTID] < size_) {
       if (instNum_ >= 0)
-        return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+        return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
       else
         return elmnts_[dev_crnt_[GLOBALTID]];
     } else
@@ -675,7 +676,7 @@ T ArrayList<T>::GetPrevElmnt() {
 
     if (crnt_ >= 0 && crnt_ < size_) {
       if (instNum_ >= 0)
-        return elmnts_[lstLngth_*crnt_ + instNum_];
+        return elmnts_[instCnt_*crnt_ + instNum_];
       else
         return elmnts_[crnt_];
     } else
@@ -689,7 +690,7 @@ T ArrayList<T>::GetPrevElmnt() {
 
   if (crnt_ >= 0 && crnt_ < size_) {
     if (instNum_ >= 0)
-      return elmnts_[lstLngth_*crnt_ + instNum_];
+      return elmnts_[instCnt_*crnt_ + instNum_];
     else
       return elmnts_[crnt_];
   } else
@@ -708,7 +709,7 @@ T ArrayList<T>::GetLastElmnt() {
       return NULL;
 
     if (instNum_ >= 0)
-      return elmnts_[lstLngth_*dev_crnt_[GLOBALTID] + instNum_];
+      return elmnts_[instCnt_*dev_crnt_[GLOBALTID] + instNum_];
     else
       return elmnts_[dev_crnt_[GLOBALTID]];
   } else {
@@ -718,7 +719,7 @@ T ArrayList<T>::GetLastElmnt() {
       return NULL;
 
     if (instNum_ >= 0)
-      return elmnts_[lstLngth_*crnt_ + instNum_];
+      return elmnts_[instCnt_*crnt_ + instNum_];
     else
       return elmnts_[crnt_];
   }
@@ -729,7 +730,7 @@ T ArrayList<T>::GetLastElmnt() {
     return NULL;
   
   if (instNum_ >= 0)
-    return elmnts_[lstLngth_*crnt_ + instNum_];
+    return elmnts_[instCnt_*crnt_ + instNum_];
   else
     return elmnts_[crnt_];
 #endif
@@ -769,7 +770,7 @@ void ArrayList<T>::RmvCrntElmnt() {
   size_--;
   if (instNum_ >= 0) {
     for (int i = crnt_; i < size_; i++)
-      elmnts_[lstLngth_*i + instNum_] = elmnts_[lstLngth_*(i + 1) + instNum_];
+      elmnts_[instCnt_*i + instNum_] = elmnts_[instCnt_*(i + 1) + instNum_];
   } else {
     for (int i = crnt_; i < size_; i++)
       elmnts_[i] = elmnts_[i + 1];
@@ -781,7 +782,7 @@ __host__ __device__
 bool ArrayList<T>::FindElmnt(const T element, int &hitCnt) const {
   if (instNum_ >= 0) {
     for (int i = 0; i < size_; i++) {
-      if (element == elmnts_[lstLngth_*i + instNum_])
+      if (element == elmnts_[instCnt_*i + instNum_])
         hitCnt++;
     }
   } else {
@@ -799,14 +800,14 @@ void ArrayList<T>::RmvElmnt(T elmnt) {
   int elmntIndx;
   if (instNum_ >= 0) {
     for (int i = 0; i < size_; i++) {
-      if (elmnts_[lstLngth_*i + instNum_] == elmnt) {
+      if (elmnts_[instCnt_*i + instNum_] == elmnt) {
         elmntIndx = i;
         break;
       }
     }
     size_--;
     for (int i = elmntIndx; i < size_; i++)
-      elmnts_[lstLngth_*i + instNum_] = elmnts_[lstLngth_*(i + 1) + instNum_];
+      elmnts_[instCnt_*i + instNum_] = elmnts_[instCnt_*(i + 1) + instNum_];
   } else {
     for (int i = 0; i < size_; i++) {
       if (elmnts_[i] == elmnt) {
@@ -852,29 +853,29 @@ void PriorityArrayList<T,K>::InsrtElmnt(T elmnt, K key, bool allowDplct) {
       return;
     
     if (ArrayList<T>::size_ == 0) {
-      ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*ArrayList<T>::size_ + ArrayList<T>::instNum_] = elmnt;
-      keys_[ArrayList<T>::lstLngth_*ArrayList<T>::size_ + ArrayList<T>::instNum_] = key;
+      ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*ArrayList<T>::size_ + ArrayList<T>::instNum_] = elmnt;
+      keys_[ArrayList<T>::instCnt_*ArrayList<T>::size_ + ArrayList<T>::instNum_] = key;
       ArrayList<T>::size_++;
       return;
     }
     if (allowDplct) { // Do reverse insertion
       for (int i = ArrayList<T>::size_ - 1; i > -2; i--) {
-        if (i == -1 || keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] >= key) {
-          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_] = elmnt;
-          keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_] = key;
+        if (i == -1 || keys_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_] >= key) {
+          ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*(i + 1) + ArrayList<T>::instNum_] = elmnt;
+          keys_[ArrayList<T>::instCnt_*(i + 1) + ArrayList<T>::instNum_] = key;
           ArrayList<T>::size_++;
           break;
         }
-        ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_];
-        keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_];
+        ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*(i + 1) + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_];
+        keys_[ArrayList<T>::instCnt_*(i + 1) + ArrayList<T>::instNum_] = keys_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_];
       }
     } else {  // Do regular insert so we can scan for duplicates before shifting
       int indx;
       bool foundDplct = false;
 
       for (indx = 0; indx < ArrayList<T>::size_; indx++) {
-        if (keys_[ArrayList<T>::lstLngth_*indx + ArrayList<T>::instNum_] <= key) {
-          foundDplct = (keys_[ArrayList<T>::lstLngth_*indx + ArrayList<T>::instNum_] == key);
+        if (keys_[ArrayList<T>::instCnt_*indx + ArrayList<T>::instNum_] <= key) {
+          foundDplct = (keys_[ArrayList<T>::instCnt_*indx + ArrayList<T>::instNum_] == key);
           break;
         }
       }
@@ -886,13 +887,13 @@ void PriorityArrayList<T,K>::InsrtElmnt(T elmnt, K key, bool allowDplct) {
       // space for new elmnt
       if (indx != ArrayList<T>::size_) {
         for (int i = ArrayList<T>::size_; i > indx; i--) {
-          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i - 1) + ArrayList<T>::instNum_];
-          keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i - 1) + ArrayList<T>::instNum_];
+          ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*(i - 1) + ArrayList<T>::instNum_];
+          keys_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::instCnt_*(i - 1) + ArrayList<T>::instNum_];
         }
       }
 
-      ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*indx + ArrayList<T>::instNum_] = elmnt;
-      keys_[ArrayList<T>::lstLngth_*indx + ArrayList<T>::instNum_] = key;
+      ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*indx + ArrayList<T>::instNum_] = elmnt;
+      keys_[ArrayList<T>::instCnt_*indx + ArrayList<T>::instNum_] = key;
       ArrayList<T>::size_++;
     }
   } else {
@@ -952,7 +953,7 @@ __host__ __device__
 void PriorityArrayList<T,K>::CopyList(PriorityArrayList<T,K> *otherLst) {
   if (ArrayList<T>::instNum_ >= 0) {
     for (int i = 0; i < otherLst->size_; i++) {
-      InsrtElmnt(otherLst->elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_], otherLst->keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_], true);
+      InsrtElmnt(otherLst->elmnts_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_], otherLst->keys_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_], true);
     }
   } else {
     for (int i = 0; i < otherLst->size_; i++) {
@@ -969,8 +970,8 @@ void PriorityArrayList<T,K>::RmvCrntElmnt() {
   ArrayList<T>::size_--;
   if (ArrayList<T>::instNum_ >= 0) {
     for (int i = ArrayList<T>::crnt_; i < ArrayList<T>::size_; i++) {
-      ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
-      keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
+      ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*(i + 1) + ArrayList<T>::instNum_];
+      keys_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::instCnt_*(i + 1) + ArrayList<T>::instNum_];
     }
   } else {
     for (int i = ArrayList<T>::crnt_; i < ArrayList<T>::size_; i++) {
@@ -988,51 +989,51 @@ void PriorityArrayList<T,K>::BoostElmnt(T elmnt, K newKey) {
   if (ArrayList<T>::instNum_ >= 0) {
     // FindElmnt
     for (int i = 0; i < ArrayList<T>::size_; i++) {
-      if (elmnt == ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_]) {
+      if (elmnt == ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_]) {
         elmntIndx = i;
         break;
       }
     }
 
     if (elmntIndx != -1) {
-      if (keys_[ArrayList<T>::lstLngth_*elmntIndx + ArrayList<T>::instNum_] < newKey) {
+      if (keys_[ArrayList<T>::instCnt_*elmntIndx + ArrayList<T>::instNum_] < newKey) {
         // if elmnt is already at the top or its prev elmnt still has a 
         // higher key, it is already in place
-        if (elmntIndx == 0 || keys_[ArrayList<T>::lstLngth_*(elmntIndx - 1) + ArrayList<T>::instNum_] >= newKey)
+        if (elmntIndx == 0 || keys_[ArrayList<T>::instCnt_*(elmntIndx - 1) + ArrayList<T>::instNum_] >= newKey)
           return;
 
         newIndx = elmntIndx;
 
-        while (newIndx != 0 && keys_[ArrayList<T>::lstLngth_*(newIndx - 1) + ArrayList<T>::instNum_] < newKey)
+        while (newIndx != 0 && keys_[ArrayList<T>::instCnt_*(newIndx - 1) + ArrayList<T>::instNum_] < newKey)
           newIndx--;
 
         for (int i = elmntIndx; i > newIndx; i--) {
-          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i - 1) + ArrayList<T>::instNum_];
-          keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i - 1) + ArrayList<T>::instNum_];
+          ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*(i - 1) + ArrayList<T>::instNum_];
+          keys_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::instCnt_*(i - 1) + ArrayList<T>::instNum_];
         }
 
-        ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*newIndx + ArrayList<T>::instNum_] = elmnt;
-        keys_[ArrayList<T>::lstLngth_*newIndx + ArrayList<T>::instNum_] = newKey;
-      } else if (keys_[ArrayList<T>::lstLngth_*elmntIndx + ArrayList<T>::instNum_] < newKey) {
+        ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*newIndx + ArrayList<T>::instNum_] = elmnt;
+        keys_[ArrayList<T>::instCnt_*newIndx + ArrayList<T>::instNum_] = newKey;
+      } else if (keys_[ArrayList<T>::instCnt_*elmntIndx + ArrayList<T>::instNum_] < newKey) {
         // if elmnt is already at the bottom or next elmnt still has
         // a lower key, it is already in place
         if (elmntIndx == ArrayList<T>::size_ - 1 || 
-      keys_[ArrayList<T>::lstLngth_*(elmntIndx + 1) + ArrayList<T>::instNum_] <= newKey)
+      keys_[ArrayList<T>::instCnt_*(elmntIndx + 1) + ArrayList<T>::instNum_] <= newKey)
           return;
 
         newIndx = elmntIndx;
 
         while (newIndx != ArrayList<T>::size_ - 1 && 
-        keys_[ArrayList<T>::lstLngth_*(newIndx + 1) + ArrayList<T>::instNum_] > newKey)
+        keys_[ArrayList<T>::instCnt_*(newIndx + 1) + ArrayList<T>::instNum_] > newKey)
           newIndx++;
 
         for (int i = elmntIndx; i < newIndx; i++) {
-          ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
-          keys_[ArrayList<T>::lstLngth_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::lstLngth_*(i + 1) + ArrayList<T>::instNum_];
+          ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_] = ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*(i + 1) + ArrayList<T>::instNum_];
+          keys_[ArrayList<T>::instCnt_*i + ArrayList<T>::instNum_] = keys_[ArrayList<T>::instCnt_*(i + 1) + ArrayList<T>::instNum_];
         }
 
-        ArrayList<T>::elmnts_[ArrayList<T>::lstLngth_*newIndx + ArrayList<T>::instNum_] = elmnt;
-        keys_[ArrayList<T>::lstLngth_*newIndx + ArrayList<T>::instNum_] = newKey;
+        ArrayList<T>::elmnts_[ArrayList<T>::instCnt_*newIndx + ArrayList<T>::instNum_] = elmnt;
+        keys_[ArrayList<T>::instCnt_*newIndx + ArrayList<T>::instNum_] = newKey;
       }
     }
   } else {

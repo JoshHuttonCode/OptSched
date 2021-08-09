@@ -374,8 +374,8 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
                                      InstCount instCnt, 
                                      std::vector<GraphEdge *> *edges,
                                      GraphEdge *dev_edges,
-                                     GraphEdge **dev_scsrElmnts, int maxScsrLstLngth,
-                                     GraphEdge **dev_prdcsrElmnts, int maxPrdcsrLstLngth,
+                                     GraphEdge **dev_scsrElmnts,
+                                     GraphEdge **dev_prdcsrElmnts,
                                      unsigned long *dev_keys) {
   size_t memSize;
   int index;
@@ -388,13 +388,13 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   gpuErrchk(cudaMemcpy(&dev_node->scsrLst_, &dev_scsrLst,
 		       sizeof(PriorityArrayList<GraphEdge *> *),
 		       cudaMemcpyHostToDevice));
-  // set instNum_ and lstLngth_ for linearized 2D array indexing
+  // set instNum_ and instCnt_ for linearized 2D array indexing
   dev_scsrLst->instNum_ = this->GetNum();
-  dev_scsrLst->lstLngth_ = maxScsrLstLngth;
+  dev_scsrLst->instCnt_ = instCnt;
   // Copy elmnts_ and keys
   if (scsrLst_->maxSize_ > 0) {
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
-      dev_keys[maxScsrLstLngth*i + this->GetNum()] = scsrLst_->keys_[i];
+      dev_keys[instCnt*i + this->GetNum()] = scsrLst_->keys_[i];
     }
     gpuErrchk(cudaMemcpy(dev_keys, scsrLst_->keys_, memSize,
 			 cudaMemcpyHostToDevice));
@@ -412,7 +412,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
       else
 	index = ((GraphEdge **)ptrToEdge - (GraphEdge **)&(*edges)[0]);
       // set the dev_scsrElmnts pointer to the corresponding dev_edges pointer
-      dev_scsrElmnts[maxScsrLstLngth*i + this->GetNum()] = &dev_edges[index];
+      dev_scsrElmnts[instCnt*i + this->GetNum()] = &dev_edges[index];
     }
     // New dev_edges values are copied before kernel start in DataDepGraph
   }
@@ -427,9 +427,9 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   gpuErrchk(cudaMemcpy(&dev_node->prdcsrLst_, &dev_prdcsrLst,
                        sizeof(ArrayList<GraphEdge *> *),
                        cudaMemcpyHostToDevice));
-  // set instNum_ and lstLngth_ for linearized 2D array indexing
+  // set instNum_ and instCnt_ for linearized 2D array indexing
   dev_prdcsrLst->instNum_ = this->GetNum();
-  dev_prdcsrLst->lstLngth_ = maxPrdcsrLstLngth;
+  dev_prdcsrLst->instCnt_ = instCnt;
   // Copy elmnts_
   if (prdcsrLst_->maxSize_ > 0) {
     gpuErrchk(cudaMemcpy(&dev_node->prdcsrLst_->elmnts_, &dev_prdcsrElmnts,
@@ -444,7 +444,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
       else
         index = ((GraphEdge **)ptrToEdge - (GraphEdge **)&(*edges)[0]);
       // set the dev_prdcsrElmnts pointer to the corresponding dev_edges pointer
-      dev_prdcsrElmnts[maxPrdcsrLstLngth*i + this->GetNum()] = &dev_edges[index];
+      dev_prdcsrElmnts[instCnt*i + this->GetNum()] = &dev_edges[index];
     }
     // New dev_edges values are copied before kernel start in DataDepGraph
   }
