@@ -396,8 +396,6 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
       dev_keys[instCnt*i + this->GetNum()] = scsrLst_->keys_[i];
     }
-    gpuErrchk(cudaMemcpy(dev_keys, scsrLst_->keys_, memSize,
-			 cudaMemcpyHostToDevice));
     gpuErrchk(cudaMemcpy(&dev_node->scsrLst_->keys_, &dev_keys,
 			 sizeof(unsigned long *), cudaMemcpyHostToDevice));
     gpuErrchk(cudaMemcpy(&dev_node->scsrLst_->elmnts_, &dev_scsrElmnts,
