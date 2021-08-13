@@ -427,7 +427,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   if (prdcsrLst_->maxSize_ > 0) {
     // set instNum_ and instCnt_ for linearized 2D array indexing
     dev_node->prdcsrLst_->instNum_ = this->GetNum();
-    dev_node->prdcsrLst_instCnt_ = instCnt;
+    dev_node->prdcsrLst_->instCnt_ = instCnt;
     dev_node->prdcsrLst_->elmnts_ = dev_prdcsrElmnts;
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < prdcsrLst_->size_; i++) {
