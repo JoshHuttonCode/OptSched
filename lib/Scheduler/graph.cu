@@ -388,18 +388,16 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   gpuErrchk(cudaMemcpy(&dev_node->scsrLst_, &dev_scsrLst,
 		       sizeof(PriorityArrayList<GraphEdge *> *),
 		       cudaMemcpyHostToDevice));
-  // set instNum_ and instCnt_ for linearized 2D array indexing
-  dev_scsrLst->instNum_ = this->GetNum();
-  dev_scsrLst->instCnt_ = instCnt;
   // Copy elmnts_ and keys
   if (scsrLst_->maxSize_ > 0) {
+    // set instNum_ and instCnt_ for linearized 2D array indexing
+    dev_node->scsrLst_->instNum_ = this->GetNum();
+    dev_node->scsrLst_->instCnt_ = instCnt;
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
       dev_keys[instCnt*i + this->GetNum()] = scsrLst_->keys_[i];
     }
-    gpuErrchk(cudaMemcpy(&dev_node->scsrLst_->keys_, &dev_keys,
-			 sizeof(unsigned long *), cudaMemcpyHostToDevice));
-    gpuErrchk(cudaMemcpy(&dev_node->scsrLst_->elmnts_, &dev_scsrElmnts,
-			 sizeof(GraphEdge **), cudaMemcpyHostToDevice));
+    dev_node->scsrLst_->keys_ = dev_keys;
+    dev_node->scsrLst_->elmnts_ = dev_scsrElmnts;
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
       // find the matching pointer in the array of edge pointers
@@ -425,13 +423,12 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   gpuErrchk(cudaMemcpy(&dev_node->prdcsrLst_, &dev_prdcsrLst,
                        sizeof(ArrayList<GraphEdge *> *),
                        cudaMemcpyHostToDevice));
-  // set instNum_ and instCnt_ for linearized 2D array indexing
-  dev_prdcsrLst->instNum_ = this->GetNum();
-  dev_prdcsrLst->instCnt_ = instCnt;
   // Copy elmnts_
   if (prdcsrLst_->maxSize_ > 0) {
-    gpuErrchk(cudaMemcpy(&dev_node->prdcsrLst_->elmnts_, &dev_prdcsrElmnts,
-                         sizeof(GraphEdge **), cudaMemcpyHostToDevice));
+    // set instNum_ and instCnt_ for linearized 2D array indexing
+    dev_node->prdcsrLst_->instNum_ = this->GetNum();
+    dev_node->prdcsrLst_instCnt_ = instCnt;
+    dev_node->prdcsrLst_->elmnts_ = dev_prdcsrElmnts;
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < prdcsrLst_->size_; i++) {
       // find the matching pointer in the array of edge pointers
