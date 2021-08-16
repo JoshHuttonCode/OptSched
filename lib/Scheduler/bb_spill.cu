@@ -1508,7 +1508,8 @@ void BBWithSpill::CopyPointersToDevice(SchedRegion* dev_rgn, int numThreads) {
   // prepare temp host array to copy all dev_liveRegs in one call
   memSize = regTypeCnt_ * sizeof(WeightedBitVector) * numThreads;
   gpuErrchk(cudaMallocManaged((void**)&dev_temp_liveRegs, memSize));
-  temp_bv = (WeightedBitVector *)malloc(memSize);
+  //temp_bv = (WeightedBitVector *)malloc(memSize);
+  gpuErrchk(cudaMallocHost((&temp_bv, memSize)));
   // temp array laid out in the format temp_bv[liveRegIndx][TID]
   // so that all of the threads have their copy of liveRegs
   // next to each other in memory
@@ -1562,7 +1563,8 @@ void BBWithSpill::CopyPointersToDevice(SchedRegion* dev_rgn, int numThreads) {
   // prepare temp host array to copy all dev_livePhysRegs in one call
   memSize = regTypeCnt_ * sizeof(WeightedBitVector) * numThreads;
   gpuErrchk(cudaMallocManaged((void**)&dev_temp_livePhysRegs, memSize));
-  temp_bv = (WeightedBitVector *)malloc(memSize);
+  //temp_bv = (WeightedBitVector *)malloc(memSize);
+  gpuErrchk(cudaMallocHost((&temp_bv, memSize)));
   // temp array laid out in the format temp_bv[liveRegIndx][TID]
   // so that all of the threads have their copy of livePhysRegs
   // next to each other in memory
