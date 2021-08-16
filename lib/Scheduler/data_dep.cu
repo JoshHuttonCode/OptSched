@@ -3692,7 +3692,7 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
   std::sort(edges_->begin(), edges_->end());
   memSize = sizeof(GraphEdge) * edges_->size();
   // Will hold all host edges in one array to be copied to device in one copy
-  //GraphEdge *host_edges = (GraphEdge *)malloc(memSize);
+  GraphEdge *host_edges;// = (GraphEdge *)malloc(memSize);
   gpuErrchk(cudaMallocHost((&host_edges, memSize)));
   gpuErrchk(cudaMalloc(&dev_edges_, memSize));
   // iterate through all pointers to edges and copy them into one host array

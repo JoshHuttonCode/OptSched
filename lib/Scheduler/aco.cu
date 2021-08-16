@@ -799,7 +799,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     Logger::Info("Creating and copying schedules to device"); 
     // An array to temporarily hold schedules to be copied over
     memSize = sizeof(InstSchedule) * NUMTHREADS;
-    //InstSchedule *temp_schedules = (InstSchedule *)malloc(memSize);
+    InstSchedule *temp_schedules;// = (InstSchedule *)malloc(memSize);
     gpuErrchk(cudaMallocHost((&temp_schedules, memSize)));
     // An array of pointers to schedules which are copied over
     InstSchedule **host_schedules = new InstSchedule *[NUMTHREADS];
