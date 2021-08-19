@@ -374,8 +374,8 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
                                      InstCount instCnt, 
                                      std::vector<GraphEdge *> *edges,
                                      GraphEdge *dev_edges,
-                                     GraphEdge **dev_scsrElmnts,
-                                     GraphEdge **dev_prdcsrElmnts,
+                                     GraphEdge **dev_scsrElmnts, int maxScsrLstLngth,
+                                     GraphEdge **dev_prdcsrElmnts, int maxPrdcsrLstLngth,
                                      unsigned long *dev_keys) {
   size_t memSize;
   int index;
@@ -392,7 +392,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   if (scsrLst_->maxSize_ > 0) {
     // set instNum_ and instCnt_ for linearized 2D array indexing
     dev_node->scsrLst_->instNum_ = this->GetNum();
-    dev_node->scsrLst_->instCnt_ = instCnt;
+    dev_node->scsrLst_->instCnt_ = maxScsrLstLngth;
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
       dev_keys[instCnt*this->GetNum() + i] = scsrLst_->keys_[i];
     }
@@ -427,7 +427,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   if (prdcsrLst_->maxSize_ > 0) {
     // set instNum_ and instCnt_ for linearized 2D array indexing
     dev_node->prdcsrLst_->instNum_ = this->GetNum();
-    dev_node->prdcsrLst_->instCnt_ = instCnt;
+    dev_node->prdcsrLst_->instCnt_ = maxPrdcsrLstLngth;
     dev_node->prdcsrLst_->elmnts_ = dev_prdcsrElmnts;
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < prdcsrLst_->size_; i++) {
