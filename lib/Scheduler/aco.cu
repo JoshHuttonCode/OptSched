@@ -741,11 +741,6 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
   }
 }
 
-__global__
-void dummyKernel(InstSchedule **dev_schedules) {
-  dev_schedules[1]->Initialize();
-}
-
 FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
                                        SchedRegion *region,
 				       ACOScheduler *dev_AcoSchdulr) {
@@ -860,7 +855,6 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     // Make sure managed memory is copied to device before kernel start
     memSize = sizeof(ACOScheduler);
     gpuErrchk(cudaMemPrefetchAsync(dev_AcoSchdulr, memSize, 0));
-    dummyKernel<<<NUMBLOCKS, NUMTHREADSPERBLOCK>>>(&dev_schedules);
     Logger::Info("Launching Dev_ACO with %d blocks of %d threads", NUMBLOCKS,
                                                            NUMTHREADSPERBLOCK);
     // Using Cooperative Grid Groups requires launching with
