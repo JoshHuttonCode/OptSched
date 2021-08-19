@@ -394,7 +394,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
     dev_node->scsrLst_->instNum_ = this->GetNum();
     dev_node->scsrLst_->instCnt_ = maxScsrLstLngth;
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
-      dev_keys[instCnt*this->GetNum() + i] = scsrLst_->keys_[i];
+      dev_keys[maxScsrLstLngth*this->GetNum() + i] = scsrLst_->keys_[i];
     }
     dev_node->scsrLst_->keys_ = dev_keys;
     dev_node->scsrLst_->elmnts_ = dev_scsrElmnts;
@@ -408,7 +408,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
       else
 	index = ((GraphEdge **)ptrToEdge - (GraphEdge **)&(*edges)[0]);
       // set the dev_scsrElmnts pointer to the corresponding dev_edges pointer
-      dev_scsrElmnts[instCnt*this->GetNum() + i] = &dev_edges[index];
+      dev_scsrElmnts[maxScsrLstLngth*this->GetNum() + i] = &dev_edges[index];
     }
     // New dev_edges values are copied before kernel start in DataDepGraph
   }
@@ -439,7 +439,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
       else
         index = ((GraphEdge **)ptrToEdge - (GraphEdge **)&(*edges)[0]);
       // set the dev_prdcsrElmnts pointer to the corresponding dev_edges pointer
-      dev_prdcsrElmnts[instCnt*this->GetNum() + i] = &dev_edges[index];
+      dev_prdcsrElmnts[maxPrdcsrLstLngth*this->GetNum() + i] = &dev_edges[index];
     }
     // New dev_edges values are copied before kernel start in DataDepGraph
   }
