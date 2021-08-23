@@ -1099,7 +1099,7 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
   // Copy sortedScsrLst_
   GraphNode::CopyPointersToDevice((GraphNode *)dev_inst, dev_nodes, instCnt,
                                   edges, dev_edges, dev_prdcsrScsrElmnts_, 
-                                  dev_keys_, scsrIndex, prdcsrIndex);
+                                  dev_keys, scsrIndex, prdcsrIndex);
   // make sure managed mem is copied to device before kernel start
   memSize = sizeof(InstCount *) * numThreads;
   gpuErrchk(cudaMemPrefetchAsync(dev_rdyCyclePerPrdcsr_, memSize, 0));
