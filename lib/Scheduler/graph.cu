@@ -374,9 +374,9 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
                                      InstCount instCnt, 
                                      std::vector<GraphEdge *> *edges,
                                      GraphEdge *dev_edges,
-                                     GraphEdge **dev_scsrElmnts, int maxScsrLstLngth,
-                                     GraphEdge **dev_prdcsrElmnts, int maxPrdcsrLstLngth,
-                                     unsigned long *dev_keys) {
+                                     GraphEdge **dev_prdcsrScsrElmnts_, 
+                                     unsigned long *dev_keys, 
+                                     int &scsrIndex, int &prdcsrIndex) {
   size_t memSize;
   int index;
   void *ptrToEdge;
@@ -390,14 +390,12 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
 		       cudaMemcpyHostToDevice));
   // Copy elmnts_ and keys
   if (scsrLst_->maxSize_ > 0) {
-    // set instNum_ and instCnt_ for linearized 2D array indexing
-    dev_node->scsrLst_->instNum_ = this->GetNum();
-    dev_node->scsrLst_->instCnt_ = maxScsrLstLngth;
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
-      dev_keys[maxScsrLstLngth*this->GetNum() + i] = scsrLst_->keys_[i];
+      dev_keys[scsrIndex + i] = scsrLst_->keys_[i];
     }
-    dev_node->scsrLst_->keys_ = dev_keys;
-    dev_node->scsrLst_->elmnts_ = dev_scsrElmnts;
+    dev_node->scsrLst_->keys_ = dev_keys[scsrIndex];
+    dev_node->scsrLst_->elmnts_ = &dev_prdcsrScsrElmnts_[scsrIndex];
+    scsrIndex+= dev_node->scsrLst_->GetElmntCnt();
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
       // find the matching pointer in the array of edge pointers
@@ -406,9 +404,9 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
       if (!ptrToEdge)
         Logger::Fatal("Failed to find matching edge in scsrLst");
       else
-	index = ((GraphEdge **)ptrToEdge - (GraphEdge **)&(*edges)[0]);
+	      index = ((GraphEdge **)ptrToEdge - (GraphEdge **)&(*edges)[0]);
       // set the dev_scsrElmnts pointer to the corresponding dev_edges pointer
-      dev_scsrElmnts[maxScsrLstLngth*this->GetNum() + i] = &dev_edges[index];
+      dev_node->scsrLst_->elmnts_[i] = &dev_edges[index];
     }
     // New dev_edges values are copied before kernel start in DataDepGraph
   }
@@ -425,10 +423,8 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
                        cudaMemcpyHostToDevice));
   // Copy elmnts_
   if (prdcsrLst_->maxSize_ > 0) {
-    // set instNum_ and instCnt_ for linearized 2D array indexing
-    dev_node->prdcsrLst_->instNum_ = this->GetNum();
-    dev_node->prdcsrLst_->instCnt_ = maxPrdcsrLstLngth;
-    dev_node->prdcsrLst_->elmnts_ = dev_prdcsrElmnts;
+    dev_node->prdcsrLst_->elmnts_ = &dev_prdcsrScsrElmnts_[prdcsrIndex];
+    prdcsrIndex+= dev_node->prdcsrLst_->GetElmntCnt();
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < prdcsrLst_->size_; i++) {
       // find the matching pointer in the array of edge pointers
@@ -439,7 +435,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
       else
         index = ((GraphEdge **)ptrToEdge - (GraphEdge **)&(*edges)[0]);
       // set the dev_prdcsrElmnts pointer to the corresponding dev_edges pointer
-      dev_prdcsrElmnts[maxPrdcsrLstLngth*this->GetNum() + i] = &dev_edges[index];
+      dev_node->prdcsrLst_->elmnts_[i] = &dev_edges[index];
     }
     // New dev_edges values are copied before kernel start in DataDepGraph
   }

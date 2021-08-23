@@ -550,8 +550,8 @@ public:
   void CopyPointersToDevice(SchedInstruction *dev_inst, GraphNode **dev_nodes, 
 		            InstCount instCnt, RegisterFile *dev_regFiles, 
                             int numThreads, std::vector<GraphEdge *> *edges,
-                            GraphEdge *dev_edges, GraphEdge **dev_scsrElmnts, int maxScsrLstLngth,
-                            GraphEdge **dev_prdcsrElmnts, int maxPrdcsrLstLngth, unsigned long *dev_keys);
+                            GraphEdge *dev_edges, GraphEdge **dev_prdcsrScsrElmnts_, 
+                            unsigned long *dev_keys, int &scsrIndex, int &prdcsrIndex);
   // Calls cudaFree on all arrays/objects that were allocated with cudaMalloc
   void FreeDevicePointers(int numThreads);
   // Allocates arrays used for storing individual values for each thread in
