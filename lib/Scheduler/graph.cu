@@ -393,9 +393,9 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
       dev_keys[scsrIndex + i] = scsrLst_->keys_[i];
     }
-    dev_node->scsrLst_->keys_ = dev_keys[scsrIndex];
+    dev_node->scsrLst_->keys_ = &dev_keys[scsrIndex];
     dev_node->scsrLst_->elmnts_ = &dev_prdcsrScsrElmnts_[scsrIndex];
-    scsrIndex+= dev_node->scsrLst_->GetElmntCnt();
+    scsrIndex+= dev_node->scsrLst_->size_;
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
       // find the matching pointer in the array of edge pointers
@@ -424,7 +424,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
   // Copy elmnts_
   if (prdcsrLst_->maxSize_ > 0) {
     dev_node->prdcsrLst_->elmnts_ = &dev_prdcsrScsrElmnts_[prdcsrIndex];
-    prdcsrIndex+= dev_node->prdcsrLst_->GetElmntCnt();
+    prdcsrIndex+= dev_node->prdcsrLst_->size_;
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < prdcsrLst_->size_; i++) {
       // find the matching pointer in the array of edge pointers
