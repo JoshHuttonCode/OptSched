@@ -374,7 +374,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
                                      InstCount instCnt, 
                                      std::vector<GraphEdge *> *edges,
                                      GraphEdge *dev_edges,
-                                     GraphEdge **dev_prdcsrScsrElmnts_, 
+                                     GraphEdge **dev_prdcsrScsrElmnts, 
                                      unsigned long *dev_keys, 
                                      int &scsrIndex, int &prdcsrIndex) {
   size_t memSize;
@@ -394,7 +394,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
       dev_node->scsrLst_->keys_[i] = scsrLst_->keys_[i];
     }
-    dev_node->scsrLst_->elmnts_ = &dev_prdcsrScsrElmnts_[scsrIndex];
+    dev_node->scsrLst_->elmnts_ = &dev_prdcsrScsrElmnts[scsrIndex];
     scsrIndex += dev_node->scsrLst_->size_;
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < scsrLst_->size_; i++) {
@@ -423,7 +423,7 @@ void GraphNode::CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
                        cudaMemcpyHostToDevice));
   // Copy elmnts_
   if (prdcsrLst_->maxSize_ > 0) {
-    dev_node->prdcsrLst_->elmnts_ = &dev_prdcsrScsrElmnts_[prdcsrIndex];
+    dev_node->prdcsrLst_->elmnts_ = &dev_prdcsrScsrElmnts[prdcsrIndex];
     prdcsrIndex += dev_node->prdcsrLst_->size_;
     // update elmnts_ pointers to dev array
     for (InstCount i = 0; i < prdcsrLst_->size_; i++) {
