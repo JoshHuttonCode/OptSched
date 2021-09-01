@@ -231,6 +231,8 @@ public:
   // Returns whether this node is a root (i.e. has no predecessor).
   __host__ __device__
   bool IsRoot() const;
+  // Sets a bool to check if this node is root on the device
+  void SetDevIsRoot();
   // Returns whether this node is a leaf (i.e. has no successor).
   __host__ __device__
   bool IsLeaf() const;
@@ -288,9 +290,8 @@ public:
   // Copy GraphNode arrays/pointers to device
   void CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
 		            InstCount instCnt, std::vector<GraphEdge *> *edges,
-                            GraphEdge *dev_edges, GraphEdge **dev_prdcsrScsrElmnts_, 
-                            unsigned long *dev_keys, int &scsrIndex,
-                            int &prdcsrIndex);
+                            GraphEdge *dev_edges, GraphEdge **dev_scsrElmnts_, 
+                            unsigned long *dev_keys, int &scsrIndex);
   // Calls cudaFree on all arrays/objects that were allocated with cudaMalloc
   void FreeDevicePointers();
 
@@ -326,6 +327,8 @@ private:
   UDT_GLABEL maxEdgLbl_;
   // The color of this node, to be used during traversal.
   GNODE_COLOR color_;
+  // A bool to determine if this node is a root on the device
+  bool dev_IsRoot;
 
 protected:
   // A list of the immediate successors of this node.
@@ -462,7 +465,15 @@ protected:
 };
 
 __host__ __device__
-inline bool GraphNode::IsRoot() const { return prdcsrLst_->GetElmntCnt() == 0; }
+inline bool GraphNode::IsRoot() const {
+  #ifdef __CUDA_ARCH__
+    return dev_IsRoot;
+  #else
+    return prdcsrLst_->GetElmntCnt() == 0;
+  #endif
+}
+
+inline void GraphNode::SetIsRoot() { dev_IsRoot = this->IsRoot(); }
 
 __host__ __device__
 inline bool GraphNode::IsLeaf() const { return scsrLst_->GetElmntCnt() == 0; }
