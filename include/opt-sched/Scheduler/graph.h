@@ -473,7 +473,7 @@ inline bool GraphNode::IsRoot() const {
   #endif
 }
 
-inline void GraphNode::SetIsRoot() { dev_IsRoot = this->IsRoot(); }
+inline void GraphNode::SetDevIsRoot() { dev_IsRoot = this->IsRoot(); }
 
 __host__ __device__
 inline bool GraphNode::IsLeaf() const { return scsrLst_->GetElmntCnt() == 0; }
