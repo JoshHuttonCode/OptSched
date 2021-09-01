@@ -10,6 +10,8 @@ Last Update:  Jan. 2020
 #define OPTSCHED_ACO_H
 
 #include "opt-sched/Scheduler/gen_sched.h"
+#include "opt-sched/Scheduler/simplified_aco_ds.h"
+#include "opt-sched/Scheduler/ready_list.h"
 #include "opt-sched/Scheduler/device_vector.h"
 #include "llvm/ADT/ArrayRef.h"
 #include <memory>
@@ -18,8 +20,6 @@ Last Update:  Jan. 2020
 
 namespace llvm {
 namespace opt_sched {
-
-typedef double pheromone_t;
 
 // If set to 1 ACO is run on device
 #define DEV_ACO 1
@@ -97,15 +97,20 @@ private:
   __host__ __device__
   pheromone_t &Pheromone(InstCount from, InstCount to);
   __host__ __device__
-  double Score(SchedInstruction *from, Choice choice);
+  pheromone_t Score(InstCount FromId, InstCount ToId, HeurType ToHeuristic);
   DCF_OPT ParseDCFOpt(const std::string &opt);
   __host__ __device__
   void PrintPheromone();
   __host__ __device__
-  Choice SelectInstruction(DeviceVector<Choice> &ready,
-                           SchedInstruction *lastInst,
-                           double ScoreSum);
+  InstCount SelectInstruction(SchedInstruction *lastInst);
+  __host__ __device__
+  void UpdateACOReadyList(SchedInstruction *Inst);
   DeviceVector<pheromone_t> pheromone_;
+  //new ds representations
+  ACOReadyList ReadyLs;
+  KeysHelper KHelper;
+  pheromone_t MaxPriorityInv;
+  InstCount MaxScoringInst;
   // True if pheromone_.elmnts_ alloced on device
   bool dev_pheromone_elmnts_alloced_;
   pheromone_t initialValue_;

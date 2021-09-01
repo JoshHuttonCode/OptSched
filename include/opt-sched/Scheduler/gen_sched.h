@@ -112,7 +112,7 @@ public:
   // graph, with the specified upper bound.
   __host__ __device__
   ConstrainedScheduler(DataDepGraph *dataDepGraph, MachineModel *machMdl,
-                       InstCount schedUprBound);
+                       InstCount schedUprBound, bool ACOEn=false);
   // Deallocates memory used by the scheduler.
   __host__ __device__
   virtual ~ConstrainedScheduler();
@@ -122,6 +122,9 @@ public:
   //FUNC_RESULT FindSchedule(InstSchedule *sched, SchedRegion *rgn) = 0;
 
 protected:
+  // Whether this instance of ConstrainedScheduler is being used with ACO and
+  // therefore can use the aco optimizations
+  bool IsACO;
   // The data dependence graph to be scheduled.
   DataDepGraph *dataDepGraph_;
   // The current schedule.
