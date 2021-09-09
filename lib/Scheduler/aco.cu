@@ -385,7 +385,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
 
       // select the instruction and get info on it
       InstCount SelIndx = SelectInstruction(lastInst);
-      LastInstInfo = readyLs.removeInstructionAtIndex(SelIndx);
+      LastInstInfo = readyLs->removeInstructionAtIndex(SelIndx);
       waitUntil = LastInstInfo.ReadyOn;
       InstCount InstId = LastInstInfo.InstId;
       inst = dataDepGraph_->GetInstByIndx(InstId);
