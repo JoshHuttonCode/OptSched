@@ -106,11 +106,16 @@ private:
   __host__ __device__
   void UpdateACOReadyList(SchedInstruction *Inst);
   DeviceVector<pheromone_t> pheromone_;
-  //new ds representations
-  ACOReadyList ReadyLs;
-  KeysHelper KHelper;
+  // new ds representations
+  ACOReadyList *readyLs;
+  KeysHelper *kHelper;
   pheromone_t MaxPriorityInv;
   InstCount MaxScoringInst;
+
+  // new ds representations for device
+  ACOReadyList *dev_readyLs;
+  KeysHelper *dev_kHelper;
+  
   // True if pheromone_.elmnts_ alloced on device
   bool dev_pheromone_elmnts_alloced_;
   pheromone_t initialValue_;

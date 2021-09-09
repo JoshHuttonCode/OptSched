@@ -79,9 +79,11 @@ void ConstrainedScheduler::ResetRsrvSlots_() {
 __host__ __device__
 ConstrainedScheduler::ConstrainedScheduler(DataDepGraph *dataDepGraph,
                                            MachineModel *machMdl,
-                                           InstCount schedUprBound)
+                                           InstCount schedUprBound,
+                                           bool ACOEn)
     : InstScheduler(dataDepGraph, machMdl, schedUprBound) { 
   dataDepGraph_ = dataDepGraph;
+  IsACO = ACOEn;
 
   // Allocate the array of first-ready lists - one list per cycle.
   assert(schedUprBound_ > 0);
@@ -184,20 +186,21 @@ void ConstrainedScheduler::SchdulInst_(SchedInstruction *inst, InstCount) {
   InstCount prdcsrNum, scsrRdyCycle;//, scsrRdyListNum;
 
   // Notify each successor of this instruction that it has been scheduled.
-  for (SchedInstruction *crntScsr = inst->GetFrstScsr(&prdcsrNum);
-       crntScsr != NULL; crntScsr = inst->GetNxtScsr(&prdcsrNum)) {
-    bool wasLastPrdcsr =
-        crntScsr->PrdcsrSchduld(prdcsrNum, dev_crntCycleNum_[GLOBALTID], scsrRdyCycle);
+  if(!IsACO) {
+    for (SchedInstruction *crntScsr = inst->GetFrstScsr(&prdcsrNum);
+        crntScsr != NULL; crntScsr = inst->GetNxtScsr(&prdcsrNum)) {
+      bool wasLastPrdcsr =
+          crntScsr->PrdcsrSchduld(prdcsrNum, dev_crntCycleNum_[GLOBALTID], scsrRdyCycle);
 
-    if (wasLastPrdcsr) {
-      // If all other predecessors of this successor have been scheduled then
-      // we now know in which cycle this successor will become ready.
-      assert(scsrRdyCycle < schedUprBound_);
-      dev_instsWithPrdcsrsSchduld_[GLOBALTID]->
-                     InsrtElmnt(crntScsr->GetNum(), scsrRdyCycle, true);
+      if (wasLastPrdcsr) {
+        // If all other predecessors of this successor have been scheduled then
+        // we now know in which cycle this successor will become ready.
+        assert(scsrRdyCycle < schedUprBound_);
+        dev_instsWithPrdcsrsSchduld_[GLOBALTID]->
+                      InsrtElmnt(crntScsr->GetNum(), scsrRdyCycle, true);
+      }
     }
   }
-
   if (inst->BlocksCycle()) {
     dev_isCrntCycleBlkd_[GLOBALTID] = true;
   }
@@ -206,29 +209,32 @@ void ConstrainedScheduler::SchdulInst_(SchedInstruction *inst, InstCount) {
   InstCount prdcsrNum, scsrRdyCycle;
 
   // Notify each successor of this instruction that it has been scheduled.
-  for (SchedInstruction *crntScsr = inst->GetFrstScsr(&prdcsrNum);
-       crntScsr != NULL; crntScsr = inst->GetNxtScsr(&prdcsrNum)) {
-    bool wasLastPrdcsr =
-        crntScsr->PrdcsrSchduld(prdcsrNum, crntCycleNum_, scsrRdyCycle);
+  if(!IsACO) {
+    for (SchedInstruction *crntScsr = inst->GetFrstScsr(&prdcsrNum);
+        crntScsr != NULL; crntScsr = inst->GetNxtScsr(&prdcsrNum)) {
+      bool wasLastPrdcsr =
+          crntScsr->PrdcsrSchduld(prdcsrNum, crntCycleNum_, scsrRdyCycle);
 
-    if (wasLastPrdcsr) {
-      // If all other predecessors of this successor have been scheduled then
-      // we now know in which cycle this successor will become ready.
-      assert(scsrRdyCycle < schedUprBound_);
-      // If the first-ready list of that cycle has not been created yet.
-      if (frstRdyLstPerCycle_[scsrRdyCycle] == NULL) {
-        frstRdyLstPerCycle_[scsrRdyCycle] =
-                new ArrayList<InstCount>(dataDepGraph_->GetInstCnt());
+      if (wasLastPrdcsr) {
+        // If all other predecessors of this successor have been scheduled then
+        // we now know in which cycle this successor will become ready.
+        assert(scsrRdyCycle < schedUprBound_);
+        // If the first-ready list of that cycle has not been created yet.
+        if (frstRdyLstPerCycle_[scsrRdyCycle] == NULL) {
+          frstRdyLstPerCycle_[scsrRdyCycle] =
+                  new ArrayList<InstCount>(dataDepGraph_->GetInstCnt());
+        }
+        // Add this succesor to the first-ready list of the future cycle
+        // in which we now know it will become ready
+        frstRdyLstPerCycle_[scsrRdyCycle]->InsrtElmnt(crntScsr->GetNum());
       }
-      // Add this succesor to the first-ready list of the future cycle
-      // in which we now know it will become ready
-      frstRdyLstPerCycle_[scsrRdyCycle]->InsrtElmnt(crntScsr->GetNum());
     }
   }
 
   if (inst->BlocksCycle()) {
     isCrntCycleBlkd_ = true;
   }
+  
   schduldInstCnt_++;
 #endif
 }

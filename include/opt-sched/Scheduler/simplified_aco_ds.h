@@ -8,6 +8,7 @@ Created:      Jun. 2021
 #define OPTSCHED_SIMPLIFIED_ACO_H
 
 #include "opt-sched/Scheduler/defines.h"
+#include "opt-sched/Scheduler/dev_defines.h"
 #include "opt-sched/Scheduler/sched_basic_data.h"
 #include <cstdint>
 
@@ -58,11 +59,24 @@ protected:
   HeurType *HeurAllocation;
   pheromone_t *ScoreAllocation;
 
+  //device alocation pointers
+  InstCount *dev_IntAllocation;
+  HeurType *dev_HeurAllocation;
+  pheromone_t *dev_ScoreAllocation;
+
   //pointers to areas in the InstCount allocation that store ready list entry attributes
   InstCount *InstrBase;
   InstCount *ReadyOnBase;
   HeurType *HeurBase;
   pheromone_t *ScoreBase;
+
+  //device pointers to areas in the InstCount allocation that store ready list entry attributes
+  InstCount *dev_InstrBase;
+  InstCount *dev_ReadyOnBase;
+  HeurType *dev_HeurBase;
+  pheromone_t *dev_ScoreBase;
+
+  int numThreads_;
 
   //function to decide how large the primary buffer's capacity should be
   __host__ __device__
@@ -75,12 +89,21 @@ public:
   explicit ACOReadyList(InstCount RegionSize);
   __host__ __device__
   ACOReadyList(const ACOReadyList &Other);
+  __host__ __device__
   ACOReadyList &operator=(const ACOReadyList &Other);
   __host__ __device__
   ACOReadyList(ACOReadyList &&Other) noexcept;
+  __host__ __device__
   ACOReadyList &operator=(ACOReadyList &&Other) noexcept;
   __host__ __device__
   ~ACOReadyList();
+  // Allocates arrays to hold independent values for each device thread during
+  // parallel ACO
+  void AllocDevArraysForParallelACO(int numThreads);
+  // Copy pointers to device and link them to passed device pointer
+  void CopyPointersToDevice(ACOReadyList *dev_acoRdyLst, int numThreads);
+  // Calls cudaFree on all arrays/objects that were allocated with cudaMalloc
+  void FreeDevicePointers();
 
   //used to store the total score of all instructions in the ready list
   pheromone_t ScoreSum;

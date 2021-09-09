@@ -29,7 +29,7 @@ struct PriorityEntry {
 class KeysHelper {
   public:
   __host__ __device__
-  KeysHelper(SchedPriorities Prirts) : Priorities(Prirts), Entries{} {};
+  KeysHelper(SchedPriorities prirts) : priorities(prirts), Entries{} {};
   __host__ __device__
   KeysHelper() : KeysHelper(SchedPriorities{}) {};
 
@@ -56,7 +56,7 @@ class KeysHelper {
   private:
   // private member variables
   // scheduling priorities used for this KeysHelper
-  SchedPriorities Priorities;
+  SchedPriorities priorities;
 
   // width and offset info for each priority
   PriorityEntry Entries[MAX_SCHED_PRIRTS];

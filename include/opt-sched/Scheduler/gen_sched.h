@@ -131,9 +131,6 @@ protected:
   InstSchedule *crntSched_;
   // The ready list.
   ReadyList *rdyLst_;
-  // pointer to a device array used to store rdyLst_ for
-  // each thread by parallel ACO
-  ReadyList *dev_rdyLst_;
 
   // The number of the current cycle to be used in cycle-by-cycle scheduling.
   InstCount crntCycleNum_;
