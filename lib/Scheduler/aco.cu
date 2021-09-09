@@ -1172,6 +1172,8 @@ void ACOScheduler::AllocDevArraysForParallelACO() {
   
   // Alloc dev array for readyLs;
   readyLs->AllocDevArraysForParallelACO(NUMTHREADS);
+  // Alloc dev array for kHelper;
+  // kHelper->AllocDevArraysForParallelACO(NUMTHREADS);
   // Alloc dev array for avlblSlotsInCrntCycle_
   memSize = sizeof(int16_t *) * NUMTHREADS;
   gpuErrchk(cudaMallocManaged(&dev_avlblSlotsInCrntCycle_, memSize));
@@ -1266,10 +1268,15 @@ void ACOScheduler::CopyPointersToDevice(ACOScheduler *dev_ACOSchedulr) {
   }
   delete[] temp;
 
-  // Copy readyLs
+  // copy readyLs
   memSize = sizeof(ACOReadyList);
   gpuErrchk(cudaMallocManaged(&dev_ACOSchedulr->dev_readyLs, memSize));
   gpuErrchk(cudaMemcpy(dev_ACOSchedulr->dev_readyLs, readyLs, memSize,
+		       cudaMemcpyHostToDevice));
+  // copy khelper
+  memSize = sizeof(KeysHelper);
+  gpuErrchk(cudaMallocManaged(&dev_ACOSchedulr->dev_kHelper, memSize));
+  gpuErrchk(cudaMemcpy(dev_ACOSchedulr->dev_kHelper, kHelper, memSize,
 		       cudaMemcpyHostToDevice));
   // make sure cudaMallocManaged memory is copied to device before kernel start
   memSize = sizeof(int16_t *) * NUMTHREADS;
@@ -1280,6 +1287,8 @@ void ACOScheduler::CopyPointersToDevice(ACOScheduler *dev_ACOSchedulr) {
   gpuErrchk(cudaMemPrefetchAsync(dev_rsrvSlots_, memSize, 0));
   memSize = sizeof(ACOReadyList);
   gpuErrchk(cudaMemPrefetchAsync(&dev_ACOSchedulr->dev_readyLs, memSize, 0));
+  memSize = sizeof(KeysHelper);
+  gpuErrchk(cudaMemPrefetchAsync(&dev_ACOSchedulr->dev_kHelper, memSize, 0));
 }
 
 void ACOScheduler::FreeDevicePointers() {
@@ -1301,10 +1310,12 @@ void ACOScheduler::FreeDevicePointers() {
   cudaFree(dev_instsWithPrdcsrsSchduld_[0]->keys_);
   cudaFree(dev_instsWithPrdcsrsSchduld_[0]);
   dev_readyLs->FreeDevicePointers();
+  // dev_kHelper->FreeDevicePointers();
   cudaFree(dev_avlblSlotsInCrntCycle_);
   cudaFree(dev_rsrvSlots_);
   cudaFree(dev_rsrvSlotCnt_);
   cudaFree(dev_instsWithPrdcsrsSchduld_);
   cudaFree(dev_readyLs);
+  cudaFree(dev_kHelper);
   cudaFree(pheromone_.elmnts_);
 }

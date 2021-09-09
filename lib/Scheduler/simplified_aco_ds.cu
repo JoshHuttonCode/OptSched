@@ -4,6 +4,7 @@
 #include "opt-sched/Scheduler/data_dep.h"
 #include "opt-sched/Scheduler/sched_basic_data.h"
 #include "opt-sched/Scheduler/machine_model.h"
+#include "opt-sched/Scheduler/dev_defines.h"
 #include <algorithm>
 #include <cstddef>
 #include <utility>

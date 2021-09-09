@@ -53,6 +53,12 @@ class KeysHelper {
   __host__ __device__
   HeurType getMaxValue() const { return MaxValue; }
 
+  // Allocates arrays to hold independent values for each device thread during
+  // parallel ACO
+  // void AllocDevArraysForParallelACO(int numThreads);
+  // Calls cudaFree on all arrays/objects that were allocated with cudaMalloc
+  // void FreeDevicePointers(int numThreads);
+
   private:
   // private member variables
   // scheduling priorities used for this KeysHelper

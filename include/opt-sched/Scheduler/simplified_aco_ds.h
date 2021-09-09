@@ -8,7 +8,6 @@ Created:      Jun. 2021
 #define OPTSCHED_SIMPLIFIED_ACO_H
 
 #include "opt-sched/Scheduler/defines.h"
-#include "opt-sched/Scheduler/dev_defines.h"
 #include "opt-sched/Scheduler/sched_basic_data.h"
 #include <cstdint>
 
