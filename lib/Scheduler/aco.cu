@@ -87,14 +87,19 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   pheromone_.resize(pheromone_size);
 
   //construct the ACOReadyList member and a key helper
-  *readyLs = ACOReadyList(count_);
-  *kHelper = KeysHelper(priorities);
+  readyLs = new ACOReadyList(count_);
+  kHelper = new KeysHelper(priorities);
   kHelper->initForRegion(dataDepGraph);
 
   InitialSchedule = nullptr;
 }
 
-ACOScheduler::~ACOScheduler() {}
+ACOScheduler::~ACOScheduler() {
+  if (readyLs)
+    delete readyLs;
+  if (kHelper)
+    delete kHelper;
+}
 
 // Pheromone table lookup
 // -1 means no instruction, so e.g. pheromone(-1, 10) gives pheromone on path
