@@ -190,7 +190,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
   point = dev_readyLs->ScoreSum * curand_uniform(&dev_states_[GLOBALTID]);
 #else
   rand = RandDouble(0, 1);
-  point = RandDouble(0, readyLs.ScoreSum);
+  point = RandDouble(0, readyLs->ScoreSum);
 #endif
 
   //here we compute the chance that we will use fp selection or auto pick the best
@@ -354,7 +354,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   bool IsSecondPass = rgn_->IsSecondPass();
   // The MaxPriority that we are getting from the ready list represents the maximum possible heuristic/key value that we can have
   // I want to move all the heuristic computation stuff to another class for code tidiness reasons.
-  HeurType MaxPriority = kHelper.getMaxValue();
+  HeurType MaxPriority = kHelper->getMaxValue();
   if (MaxPriority == 0)
     MaxPriority = 1; // divide by 0 is bad
   Initialize_();
@@ -366,11 +366,11 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   // initialize the aco ready list so that the start instruction is ready
   // The luc component is 0 since the root inst uses no instructions
   InstCount RootId = rootInst_->GetNum();
-  HeurType RootHeuristic = kHelper.computeKey(rootInst_, true);
+  HeurType RootHeuristic = kHelper->computeKey(rootInst_, true);
   pheromone_t RootScore = Score(-1, RootId, RootHeuristic);
   ACOReadyListEntry InitialRoot{RootId, 0, RootHeuristic, RootScore};
-  readyLs.addInstructionToReadyList(InitialRoot);
-  readyLs.ScoreSum = RootScore;
+  readyLs->addInstructionToReadyList(InitialRoot);
+  readyLs->ScoreSum = RootScore;
   MaxScoringInst = 0;
 
   SchedInstruction *inst = NULL;
@@ -431,8 +431,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
         // end schedule construction
         // keep track of ants terminated
         numAntsTerminated_++;
-        delete ready;
-        readyLs.clearReadyList();
+        readyLs->clearReadyList();
         delete schedule;
         return NULL;
       }
@@ -448,7 +447,6 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
     if (MovToNxtSlot_(inst))
       InitNewCycle_();
   }
-  delete ready;
   rgn_->UpdateScheduleCost(schedule);
   return schedule;
 #endif
