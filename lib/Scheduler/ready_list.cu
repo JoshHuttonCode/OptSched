@@ -139,6 +139,9 @@ __host__ __device__
 ReadyList::ReadyList(DataDepGraph *dataDepGraph, SchedPriorities prirts) {
   dataDepGraph_ = dataDepGraph;
   prirts_ = prirts;
+  prirtyLst_ = 
+      new PriorityArrayList<InstCount>(dataDepGraph_->GetInstCnt());
+  latestSubLst_ = new ArrayList<InstCount>(dataDepGraph_->GetInstCnt());
 
   // Initialize an array of KeyedEntry if a dynamic heuristic is used. This
   // enable fast updating for dynamic heuristics.
