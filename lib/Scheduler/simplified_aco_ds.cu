@@ -181,10 +181,10 @@ void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
       exit(1);
     } else {
       //add the instruction to the ready list
-      InstrBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.InstId;
-      ReadyOnBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.ReadyOn;
-      HeurBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.Heuristic;
-      ScoreBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.Score;
+      dev_InstrBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.InstId;
+      dev_ReadyOnBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.ReadyOn;
+      dev_HeurBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.Heuristic;
+      dev_ScoreBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.Score;
       ++CurrentSize;
     }
 
@@ -275,10 +275,10 @@ ACOReadyListEntry ACOReadyList::removeInstructionAtIndex(InstCount Indx) {
                         HeurBase[Indx*numThreads_ + GLOBALTID], 
                         ScoreBase[Indx*numThreads_ + GLOBALTID]};
     InstCount EndIndx = --CurrentSize;
-    InstrBase[Indx*numThreads_ + GLOBALTID] = InstrBase[EndIndx*numThreads_ + GLOBALTID];
-    ReadyOnBase[Indx*numThreads_ + GLOBALTID] = ReadyOnBase[EndIndx*numThreads_ + GLOBALTID];
-    HeurBase[Indx*numThreads_ + GLOBALTID] = HeurBase[EndIndx*numThreads_ + GLOBALTID];
-    ScoreBase[Indx*numThreads_ + GLOBALTID] = ScoreBase[EndIndx*numThreads_ + GLOBALTID];
+    dev_InstrBase[Indx*numThreads_ + GLOBALTID] = dev_InstrBase[EndIndx*numThreads_ + GLOBALTID];
+    dev_ReadyOnBase[Indx*numThreads_ + GLOBALTID] = dev_ReadyOnBase[EndIndx*numThreads_ + GLOBALTID];
+    dev_HeurBase[Indx*numThreads_ + GLOBALTID] = dev_HeurBase[EndIndx*numThreads_ + GLOBALTID];
+    dev_ScoreBase[Indx*numThreads_ + GLOBALTID] = dev_ScoreBase[EndIndx*numThreads_ + GLOBALTID];
     return E;
   #else
     ACOReadyListEntry E{InstrBase[Indx], ReadyOnBase[Indx], HeurBase[Indx], ScoreBase[Indx]};
@@ -296,44 +296,38 @@ void ACOReadyList::AllocDevArraysForParallelACO(int numThreads) {
   numThreads_ = numThreads;
 
   // Alloc dev array for dev_IntAllocation
-  memSize = sizeof(InstCount*) * CurrentCapacity * numThreads_ * 2;
-  gpuErrchk(cudaMallocManaged(&dev_IntAllocation, memSize));
+  memSize = sizeof(InstCount) * CurrentCapacity * numThreads_ * 2;
+  gpuErrchk(cudaMalloc(&dev_IntAllocation, memSize));
 
   // Alloc dev array for dev_HeurAllocation
-  memSize = sizeof(HeurType*) * CurrentCapacity * numThreads_;
-  gpuErrchk(cudaMallocManaged(&dev_HeurAllocation, memSize));
+  memSize = sizeof(HeurType) * CurrentCapacity * numThreads_;
+  gpuErrchk(cudaMalloc(&dev_HeurAllocation, memSize));
 
   // Alloc dev array for dev_ScoreAllocation
-  memSize = sizeof(pheromone_t*) * CurrentCapacity * numThreads_;
-  gpuErrchk(cudaMallocManaged(&dev_ScoreAllocation, memSize));
+  memSize = sizeof(pheromone_t) * CurrentCapacity * numThreads_;
+  gpuErrchk(cudaMalloc(&dev_ScoreAllocation, memSize));
+
+  memSize = sizeof(InstCount *);
+  gpuErrchk(cudaMallocManaged(&dev_InstrBase, memSize));
+  gpuErrchk(cudaMallocManaged(&dev_ReadyOnBase, memSize));
+  memSize = sizeof(HeurType *);
+  gpuErrchk(cudaMallocManaged(&dev_HeurBase, memSize));
+  memSize = sizeof(pheromone_t *);
+  gpuErrchk(cudaMallocManaged(&dev_ScoreBase, memSize));
 
   //build shortcut pointers
-  InstrBase = dev_IntAllocation;
-  ReadyOnBase = dev_IntAllocation + CurrentCapacity*numThreads;
-  HeurBase = dev_HeurAllocation;
-  ScoreBase = dev_ScoreAllocation;
+  dev_InstrBase = dev_IntAllocation;
+  dev_ReadyOnBase = dev_IntAllocation + CurrentCapacity*numThreads;
+  dev_HeurBase = dev_HeurAllocation;
+  dev_ScoreBase = dev_ScoreAllocation;
 
-  // prefetch memory used with cudaMallocManaged
-  memSize = sizeof(InstCount*) * numThreads_ * 2;
-  gpuErrchk(cudaMemPrefetchAsync(dev_IntAllocation, memSize, 0));
-
-  memSize = sizeof(HeurType*) * numThreads_;
-  gpuErrchk(cudaMemPrefetchAsync(dev_HeurAllocation, memSize, 0));
-
-  memSize = sizeof(pheromone_t*) * numThreads_;
-  gpuErrchk(cudaMemPrefetchAsync(dev_ScoreAllocation, memSize, 0));
-
-  /*// Alloc dev array for dev_IntAllocation
-  memSize = sizeof(InstCount*) * numThreads_ * 2;
-  gpuErrchk(cudaMallocManaged(&dev_IntAllocation, memSize));
-
-  // Alloc dev array for dev_HeurAllocation
-  memSize = sizeof(HeurType*) * numThreads_;
-  gpuErrchk(cudaMallocManaged(&dev_HeurAllocation, memSize));
-
-  // Alloc dev array for dev_ScoreAllocation
-  memSize = sizeof(pheromone_t*) * numThreads_;
-  gpuErrchk(cudaMallocManaged(&dev_ScoreAllocation, memSize)); */
+  memSize = sizeof(InstCount *);
+  gpuErrchk(cudaMemPrefetchAsync(dev_InstrBase, memSize, 0));
+  gpuErrchk(cudaMemPrefetchAsync(dev_ReadyOnBase, memSize, 0));
+  memSize = sizeof(HeurType *);
+  gpuErrchk(cudaMemPrefetchAsync(dev_HeurBase, memSize, 0));
+  memSize = sizeof(pheromone_t *);
+  gpuErrchk(cudaMemPrefetchAsync(dev_ScoreBase, memSize, 0));
 }
 
 void ACOReadyList::CopyPointersToDevice(ACOReadyList *dev_acoRdyLst, int numThreads) {
