@@ -1289,9 +1289,9 @@ void ACOScheduler::CopyPointersToDevice(ACOScheduler *dev_ACOSchedulr) {
   memSize = sizeof(ReserveSlot *) * NUMTHREADS;
   gpuErrchk(cudaMemPrefetchAsync(dev_rsrvSlots_, memSize, 0));
   memSize = sizeof(ACOReadyList);
-  gpuErrchk(cudaMemPrefetchAsync(&dev_ACOSchedulr->dev_readyLs, memSize, 0));
+  gpuErrchk(cudaMemPrefetchAsync(dev_ACOSchedulr->dev_readyLs, memSize, 0));
   memSize = sizeof(KeysHelper);
-  gpuErrchk(cudaMemPrefetchAsync(&dev_ACOSchedulr->dev_kHelper, memSize, 0));
+  gpuErrchk(cudaMemPrefetchAsync(dev_ACOSchedulr->dev_kHelper, memSize, 0));
 }
 
 void ACOScheduler::FreeDevicePointers() {
