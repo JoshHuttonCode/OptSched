@@ -1273,14 +1273,14 @@ void ACOScheduler::CopyPointersToDevice(ACOScheduler *dev_ACOSchedulr) {
 
   // copy readyLs
   memSize = sizeof(ACOReadyList);
-  gpuErrchk(cudaMallocManaged(&dev_ACOSchedulr->dev_readyLs, memSize));
+  gpuErrchk(cudaMalloc(&dev_ACOSchedulr->dev_readyLs, memSize));
   gpuErrchk(cudaMemcpy(dev_ACOSchedulr->dev_readyLs, readyLs, memSize,
-		       cudaMemcpyHostToHost));
+		       cudaMemcpyHostToDevice));
   // copy khelper
   memSize = sizeof(KeysHelper);
-  gpuErrchk(cudaMallocManaged(&dev_ACOSchedulr->dev_kHelper, memSize));
+  gpuErrchk(cudaMalloc(&dev_ACOSchedulr->dev_kHelper, memSize));
   gpuErrchk(cudaMemcpy(dev_ACOSchedulr->dev_kHelper, kHelper, memSize,
-		       cudaMemcpyHostToHost));
+		       cudaMemcpyHostToDevice));
   // make sure cudaMallocManaged memory is copied to device before kernel start
   memSize = sizeof(int16_t *) * NUMTHREADS;
   gpuErrchk(cudaMemPrefetchAsync(dev_avlblSlotsInCrntCycle_, memSize, 0));

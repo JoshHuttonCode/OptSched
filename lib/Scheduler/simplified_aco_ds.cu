@@ -307,30 +307,14 @@ void ACOReadyList::AllocDevArraysForParallelACO(int numThreads) {
   memSize = sizeof(pheromone_t) * CurrentCapacity * numThreads_;
   gpuErrchk(cudaMalloc(&dev_ScoreAllocation, memSize));
 
-  memSize = sizeof(InstCount *);
-  gpuErrchk(cudaMallocManaged(&dev_InstrBase, memSize));
-  gpuErrchk(cudaMallocManaged(&dev_ReadyOnBase, memSize));
-  memSize = sizeof(HeurType *);
-  gpuErrchk(cudaMallocManaged(&dev_HeurBase, memSize));
-  memSize = sizeof(pheromone_t *);
-  gpuErrchk(cudaMallocManaged(&dev_ScoreBase, memSize));
-
   //build shortcut pointers
   dev_InstrBase = dev_IntAllocation;
-  dev_ReadyOnBase = dev_IntAllocation + CurrentCapacity*numThreads;
+  dev_ReadyOnBase = &dev_IntAllocation[CurrentCapacity*numThreads];
   dev_HeurBase = dev_HeurAllocation;
   dev_ScoreBase = dev_ScoreAllocation;
-
-  memSize = sizeof(InstCount *);
-  gpuErrchk(cudaMemPrefetchAsync(dev_InstrBase, memSize, 0));
-  gpuErrchk(cudaMemPrefetchAsync(dev_ReadyOnBase, memSize, 0));
-  memSize = sizeof(HeurType *);
-  gpuErrchk(cudaMemPrefetchAsync(dev_HeurBase, memSize, 0));
-  memSize = sizeof(pheromone_t *);
-  gpuErrchk(cudaMemPrefetchAsync(dev_ScoreBase, memSize, 0));
 }
 
-void ACOReadyList::CopyPointersToDevice(ACOReadyList *dev_acoRdyLst, int numThreads) {
+/*void ACOReadyList::CopyPointersToDevice(ACOReadyList *dev_acoRdyLst, int numThreads) {
   size_t memSize;
 
   // copy over arrays
@@ -392,4 +376,4 @@ void ACOReadyList::FreeDevicePointers() {
   cudaFree(dev_IntAllocation);
   cudaFree(dev_HeurAllocation);
   cudaFree(dev_ScoreAllocation);
-}
+}*/
