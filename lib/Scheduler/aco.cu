@@ -192,7 +192,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
   pheromone_t point;
 #ifdef __CUDA_ARCH__
   rand = curand_uniform(&dev_states_[GLOBALTID]);
-  point = dev_readyLs->ScoreSum * curand_uniform(&dev_states_[GLOBALTID]);
+  point = dev_readyLs->dev_ScoreSum[GLOBALTID] * curand_uniform(&dev_states_[GLOBALTID]);
 #else
   rand = RandDouble(0, 1);
   point = RandDouble(0, readyLs->ScoreSum);
@@ -266,7 +266,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   pheromone_t RootScore = Score(-1, RootId, RootHeuristic);
   ACOReadyListEntry InitialRoot{RootId, 0, RootHeuristic, RootScore};
   dev_readyLs->addInstructionToReadyList(InitialRoot);
-  dev_readyLs->ScoreSum = RootScore;
+  dev_readyLs->dev_ScoreSum[GLOBALTID] = RootScore;
   MaxScoringInst = 0;
 
   while (!IsSchedComplete_()) {
@@ -1016,7 +1016,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
     // have increased another instruction's LUC Score
     pheromone_t MaxScore = -1;
     InstCount MaxScoreIndx = 0;
-    dev_readyLs->ScoreSum = 0;
+    dev_readyLs->dev_ScoreSum[GLOBALTID] = 0;
     PriorityEntry LUCEntry = dev_kHelper->getPriorityEntry(LSH_LUC);
     for (InstCount I = 0; I < dev_readyLs->getReadyListSize(); ++I) {
       //we first get the heuristic without the LUC component, add the LUC
@@ -1032,7 +1032,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
 
       // compute the score
       pheromone_t IScore = Score(InstId, CandidateId, Heur);
-      dev_readyLs->ScoreSum += IScore;
+      dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
       *dev_readyLs->getInstScoreAtIndex(I) = IScore;
       if(IScore > MaxScore) {
         MaxScoreIndx = I;
