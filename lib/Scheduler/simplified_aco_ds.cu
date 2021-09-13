@@ -176,16 +176,16 @@ InstCount ACOReadyList::computePrimaryCapacity(InstCount RegionSize) {
 __host__ __device__
 void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
   #ifdef __CUDA_ARCH__
-    if (CurrentSize == CurrentCapacity) {
+    if (dev_CurrentSize[GLOBALTID] == CurrentCapacity) {
       printf("Ready List ran out of capacity and needs to be resized");
       exit(1);
     } else {
       //add the instruction to the ready list
-      dev_InstrBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.InstId;
-      dev_ReadyOnBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.ReadyOn;
-      dev_HeurBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.Heuristic;
-      dev_ScoreBase[CurrentSize*numThreads_ + GLOBALTID] = Entry.Score;
-      ++CurrentSize;
+      dev_InstrBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.InstId;
+      dev_ReadyOnBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.ReadyOn;
+      dev_HeurBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Heuristic;
+      dev_ScoreBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Score;
+      ++dev_CurrentSize[GLOBALTID];
     }
 
     /*if (CurrentSize == CurrentCapacity) {
@@ -268,13 +268,13 @@ void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
 // This function has undefined behavior if CurrentSize == 0
 __host__ __device__
 ACOReadyListEntry ACOReadyList::removeInstructionAtIndex(InstCount Indx) {
-  assert(CurrentSize <= 0 || Indx >= CurrentSize || Indx < 0);
+  assert(dev_CurrentSize[GLOBALTID] <= 0 || Indx >= dev_CurrentSize[GLOBALTID] || Indx < 0);
   #ifdef __CUDA_ARCH__
-    ACOReadyListEntry E{InstrBase[Indx*numThreads_ + GLOBALTID], 
-                        ReadyOnBase[Indx*numThreads_ + GLOBALTID], 
-                        HeurBase[Indx*numThreads_ + GLOBALTID], 
-                        ScoreBase[Indx*numThreads_ + GLOBALTID]};
-    InstCount EndIndx = --CurrentSize;
+    ACOReadyListEntry E{dev_InstrBase[Indx*numThreads_ + GLOBALTID], 
+                        dev_ReadyOnBase[Indx*numThreads_ + GLOBALTID], 
+                        dev_HeurBase[Indx*numThreads_ + GLOBALTID], 
+                        dev_ScoreBase[Indx*numThreads_ + GLOBALTID]};
+    InstCount EndIndx = --dev_CurrentSize[GLOBALTID];
     dev_InstrBase[Indx*numThreads_ + GLOBALTID] = dev_InstrBase[EndIndx*numThreads_ + GLOBALTID];
     dev_ReadyOnBase[Indx*numThreads_ + GLOBALTID] = dev_ReadyOnBase[EndIndx*numThreads_ + GLOBALTID];
     dev_HeurBase[Indx*numThreads_ + GLOBALTID] = dev_HeurBase[EndIndx*numThreads_ + GLOBALTID];
@@ -306,6 +306,14 @@ void ACOReadyList::AllocDevArraysForParallelACO(int numThreads) {
   // Alloc dev array for dev_ScoreAllocation
   memSize = sizeof(pheromone_t) * CurrentCapacity * numThreads_;
   gpuErrchk(cudaMalloc(&dev_ScoreAllocation, memSize));
+
+  // Alloc dev array for dev_CurrentSize
+  memSize = sizeof(InstCount) * numThreads_;
+  gpuErrchk(cudaMalloc(&dev_CurrentSize, memSize));
+
+  // Alloc dev array for dev_CurrentSize
+  memSize = sizeof(pheromone_t) * numThreads_;
+  gpuErrchk(cudaMalloc(&dev_ScoreSum, memSize));
 
   //build shortcut pointers
   dev_InstrBase = dev_IntAllocation;
@@ -370,10 +378,12 @@ void ACOReadyList::AllocDevArraysForParallelACO(int numThreads) {
 
   memSize = sizeof(pheromone_t*) * numThreads_;
   gpuErrchk(cudaMemPrefetchAsync(dev_ScoreAllocation, memSize, 0));
-}
+}*/
 
 void ACOReadyList::FreeDevicePointers() {
   cudaFree(dev_IntAllocation);
   cudaFree(dev_HeurAllocation);
   cudaFree(dev_ScoreAllocation);
-}*/
+  cudaFree(dev_CurrentSize);
+  cudaFree(dev_ScoreSum);
+}

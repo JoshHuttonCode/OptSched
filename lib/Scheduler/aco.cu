@@ -386,7 +386,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
     inst = NULL;
     if (!waitFor) {
       // If an instruction is ready select it
-      assert(ReadyLs.getReadyListSize()); // we should always have something in the rl
+      assert(readyLs.getReadyListSize()); // we should always have something in the rl
 
       // select the instruction and get info on it
       InstCount SelIndx = SelectInstruction(lastInst);

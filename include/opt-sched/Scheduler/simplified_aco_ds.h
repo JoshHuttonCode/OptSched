@@ -62,6 +62,7 @@ protected:
   InstCount *dev_IntAllocation;
   HeurType *dev_HeurAllocation;
   pheromone_t *dev_ScoreAllocation;
+  InstCount *dev_CurrentSize;
 
   //pointers to areas in the InstCount allocation that store ready list entry attributes
   InstCount *InstrBase;
@@ -107,6 +108,9 @@ public:
   //used to store the total score of all instructions in the ready list
   pheromone_t ScoreSum;
 
+  //device version of ScoreSum
+  pheromone_t *dev_ScoreSum;
+
   //get the total size of both the primary and fallback allocations
   __host__ __device__
   size_t getTotalSizeInBytes() const;
@@ -146,28 +150,49 @@ inline size_t ACOReadyList::getTotalSizeInBytes() const {
 
 __host__ __device__
 inline InstCount *ACOReadyList::getInstIdAtIndex(InstCount Indx) const {
-  return InstrBase + Indx;
+  #ifdef __CUDA_ARCH__
+    return dev_InstrBase + Indx;
+  #else
+    return InstrBase + Indx;
+  #endif
 }
 
 __host__ __device__
 inline InstCount *ACOReadyList::getInstReadyOnAtIndex(InstCount Indx) const {
-  return ReadyOnBase + Indx;
+  #ifdef __CUDA_ARCH__
+    return dev_ReadyOnBase + Indx;
+  #else
+    return ReadyOnBase + Indx;
+  #endif
 }
 
 __host__ __device__
 inline HeurType *ACOReadyList::getInstHeuristicAtIndex(InstCount Indx) const {
-  return HeurBase + Indx;
+  #ifdef __CUDA_ARCH__
+    return dev_HeurBase + Indx;
+  #else
+    return HeurBase + Indx;
+  #endif
 }
 
 __host__ __device__
 inline pheromone_t *ACOReadyList::getInstScoreAtIndex(InstCount Indx) const {
-  return ScoreBase + Indx;
+  #ifdef __CUDA_ARCH__
+    return dev_ScoreBase + Indx;
+  #else
+    return ScoreBase + Indx;
+  #endif
 }
 
 __host__ __device__
 inline void ACOReadyList::clearReadyList() {
-  CurrentSize = 0;
-  ScoreSum = 0;
+  #ifdef __CUDA_ARCH__
+    dev_CurrentSize[GLOBALTID] = 0;
+    dev_ScoreSum[GLOBALTID] = 0;
+  #else
+    CurrentSize = 0;
+    ScoreSum = 0;
+  #endif
 }
 
 } // namespace opt_sched
