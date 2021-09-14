@@ -268,8 +268,8 @@ void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
 // This function has undefined behavior if CurrentSize == 0
 __host__ __device__
 ACOReadyListEntry ACOReadyList::removeInstructionAtIndex(InstCount Indx) {
-  assert(dev_CurrentSize[GLOBALTID] <= 0 || Indx >= dev_CurrentSize[GLOBALTID] || Indx < 0);
   #ifdef __CUDA_ARCH__
+    assert(dev_CurrentSize[GLOBALTID] <= 0 || Indx >= dev_CurrentSize[GLOBALTID] || Indx < 0);
     ACOReadyListEntry E{dev_InstrBase[Indx*numThreads_ + GLOBALTID], 
                         dev_ReadyOnBase[Indx*numThreads_ + GLOBALTID], 
                         dev_HeurBase[Indx*numThreads_ + GLOBALTID], 
@@ -281,6 +281,7 @@ ACOReadyListEntry ACOReadyList::removeInstructionAtIndex(InstCount Indx) {
     dev_ScoreBase[Indx*numThreads_ + GLOBALTID] = dev_ScoreBase[EndIndx*numThreads_ + GLOBALTID];
     return E;
   #else
+    assert(CurrentSize <= 0 || Indx >= CurrentSize || Indx < 0);
     ACOReadyListEntry E{InstrBase[Indx], ReadyOnBase[Indx], HeurBase[Indx], ScoreBase[Indx]};
     InstCount EndIndx = --CurrentSize;
     InstrBase[Indx] = InstrBase[EndIndx];

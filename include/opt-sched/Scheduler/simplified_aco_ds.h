@@ -117,7 +117,13 @@ public:
 
   //gets the number of insturctions in the ready list
   __host__ __device__
-  InstCount getReadyListSize() const { return CurrentSize; }
+  InstCount getReadyListSize() const { 
+    #ifdef __CUDA_ARCH__
+      return dev_CurrentSize[GLOBALTID];
+    #else
+      return CurrentSize;
+    #endif
+  }
 
   //IMPORTANT NOTE: ADDING OR REMOVING INSTRUCTIONS CAN/WILL CAUSE THE INSTRUCTIONS IN THE READY LIST TO BE MOVED TO NEW INDICES
   //DO NOT RELY ON AN INSTRUCTION'S INDEX IN THE READY LIST STAYING THE SAME FOLLOWING A REOMVAL/INSERTION
