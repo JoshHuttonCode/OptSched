@@ -115,6 +115,7 @@ private:
   // new ds representations for device
   ACOReadyList *dev_readyLs;
   KeysHelper *dev_kHelper;
+  InstCount *dev_MaxScoringInst;
   
   // True if pheromone_.elmnts_ alloced on device
   bool dev_pheromone_elmnts_alloced_;

@@ -233,7 +233,11 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
   #endif
   //finally we pick whether we will return the fp choice or max score inst w/o using a branch
   bool UseMax = rand < choose_best_chance;
-  size_t indx = UseMax ? MaxScoringInst : fpIndx;
+  #ifdef __CUDA_ARCH__
+    size_t indx = UseMax ? dev_MaxScoringInst[GLOBALTID] : fpIndx;
+  #else
+    size_t indx = UseMax ? MaxScoringInst : fpIndx;
+  #endif
   return indx;
 }
 
@@ -267,7 +271,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   ACOReadyListEntry InitialRoot{RootId, 0, RootHeuristic, RootScore};
   dev_readyLs->addInstructionToReadyList(InitialRoot);
   dev_readyLs->dev_ScoreSum[GLOBALTID] = RootScore;
-  MaxScoringInst = 0;
+  dev_MaxScoringInst[GLOBALTID] = 0;
 
   while (!IsSchedComplete_()) {
 
@@ -1039,7 +1043,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
         MaxScore = IScore;
       }
     }
-    MaxScoringInst = MaxScoreIndx;
+    dev_MaxScoringInst[GLOBALTID] = MaxScoreIndx;
   #else // host version of function
     // Notify each successor of this instruction that it has been scheduled.
     for (SchedInstruction *crntScsr = inst->GetFrstScsr(&prdcsrNum);
@@ -1177,6 +1181,9 @@ void ACOScheduler::AllocDevArraysForParallelACO() {
   readyLs->AllocDevArraysForParallelACO(NUMTHREADS);
   // Alloc dev array for kHelper;
   // kHelper->AllocDevArraysForParallelACO(NUMTHREADS);
+  // Alloc dev arrays for MaxScoringInst
+  memSize = sizeof(InstCount) * NUMTHREADS;
+  gpuErrchk(cudaMalloc(&dev_MaxScoringInst, memSize));
   // Alloc dev array for avlblSlotsInCrntCycle_
   memSize = sizeof(int16_t *) * NUMTHREADS;
   gpuErrchk(cudaMallocManaged(&dev_avlblSlotsInCrntCycle_, memSize));
@@ -1308,6 +1315,7 @@ void ACOScheduler::FreeDevicePointers() {
   cudaFree(dev_instsWithPrdcsrsSchduld_[0]->elmnts_);
   cudaFree(dev_instsWithPrdcsrsSchduld_[0]->keys_);
   cudaFree(dev_instsWithPrdcsrsSchduld_[0]);
+  cudaFree(dev_MaxScoringInst);
   dev_readyLs->FreeDevicePointers();
   // dev_kHelper->FreeDevicePointers();
   cudaFree(dev_avlblSlotsInCrntCycle_);
