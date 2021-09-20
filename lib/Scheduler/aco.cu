@@ -726,7 +726,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
   int noImprovement = 0; // how many iterations with no improvement
   int iterations = 0;
   InstSchedule *iterationBest = nullptr;
-
+  
   if (DEV_ACO) { // Run ACO on device
     size_t memSize;
     // Update pheromones on device
@@ -975,7 +975,7 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule) {
   // decay pheromone
   for (int i = 0; i < count_; i++) {
     for (int j = 0; j < count_; j++) {
-      pheromone = &Pheromone(j, instNum);
+      pheromone = &Pheromone(i, j);
       *pheromone *= (1 - decay_factor);
       *pheromone = fmax(1, fmin(8, *pheromone));
     }
@@ -1316,7 +1316,7 @@ void ACOScheduler::FreeDevicePointers() {
   cudaFree(dev_instsWithPrdcsrsSchduld_[0]->keys_);
   cudaFree(dev_instsWithPrdcsrsSchduld_[0]);
   cudaFree(dev_MaxScoringInst);
-  dev_readyLs->FreeDevicePointers();
+  readyLs->FreeDevicePointers();
   // dev_kHelper->FreeDevicePointers();
   cudaFree(dev_avlblSlotsInCrntCycle_);
   cudaFree(dev_rsrvSlots_);
