@@ -251,9 +251,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   ACOReadyListEntry LastInstInfo;
   InstSchedule *schedule = dev_schedule;
   bool IsSecondPass = dev_rgn_->IsSecondPass();
-  #ifdef __CUDA_ARCH__
-    dev_readyLs->clearReadyList();
-  #endif
+  dev_readyLs->clearReadyList();
 
   // The MaxPriority that we are getting from the ready list represents
   // the maximum possible heuristic/key value that we can have

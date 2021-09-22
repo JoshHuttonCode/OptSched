@@ -93,7 +93,7 @@ HeurType KeysHelper::computeKey(SchedInstruction *Inst, bool IncludeDynamic) con
       break;
 
     case LSH_UC:
-      PriorityValue = Inst->NumUses();
+      PriorityValue = Inst->GetUseCnt();
       break;
 
     case LSH_NID:
@@ -113,7 +113,7 @@ HeurType KeysHelper::computeKey(SchedInstruction *Inst, bool IncludeDynamic) con
       PriorityValue = Inst->GetLtncySum();
       break;
     }
-
+    
     Key <<= Entries[Heur].Width;
     Key |= PriorityValue;
   }

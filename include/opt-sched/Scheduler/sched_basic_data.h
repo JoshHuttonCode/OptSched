@@ -498,9 +498,6 @@ public:
   // Returns whether this instruction uses the specified register.
   __host__ __device__
   bool FindUse(Register *reg) const;
-
-  int16_t NumDefs() { return defCnt_; }
-  int16_t NumUses() { return useCnt_; }
   
   // Retrieves the list of registers defined by this node. The array is put
   // into defs and the number of elements is returned.
