@@ -251,6 +251,9 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   ACOReadyListEntry LastInstInfo;
   InstSchedule *schedule = dev_schedule;
   bool IsSecondPass = dev_rgn_->IsSecondPass();
+  #ifdef __CUDA_ARCH__
+    dev_readyLs->clearReadyList();
+  #endif
 
   // The MaxPriority that we are getting from the ready list represents
   // the maximum possible heuristic/key value that we can have
@@ -575,7 +578,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     RPTarget = dev_bestSched->GetSpillCost();
   else
     RPTarget = INT_MAX;
-
+  
   // Start ACO
   while (dev_noImprovement < noImprovementMax) {
     // Reset schedules to post constructor state
