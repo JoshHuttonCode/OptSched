@@ -177,37 +177,17 @@ __host__ __device__
 void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
   #ifdef __CUDA_ARCH__
     if (dev_CurrentSize[GLOBALTID] == CurrentCapacity) {
-      printf("Ready List ran out of capacity and needs to be resized");
+      printf("ERROR: The Ready List of thread %d ran out of capacity\n", GLOBALTID);
       exit(1);
-    } else {
-      //add the instruction to the ready list
-      dev_InstrBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.InstId;
-      dev_ReadyOnBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.ReadyOn;
-      dev_HeurBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Heuristic;
-      dev_ScoreBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Score;
-      ++dev_CurrentSize[GLOBALTID];
-    }
+    } 
+    //add the instruction to the ready list
+    dev_InstrBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.InstId;
+    dev_ReadyOnBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.ReadyOn;
+    dev_HeurBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Heuristic;
+    dev_ScoreBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Score;
+    ++dev_CurrentSize[GLOBALTID];
+    
 
-    /*if (CurrentSize == CurrentCapacity) {
-      int OldCap = CurrentCapacity;
-      bool PrevOverflowed = Overflowed;
-
-      // get a new allocation to put the data in
-      // The expansion formula is to make the new allocation 1.5 times the size of the old one
-      // consider making this formula more aggressive
-      int NewCap = (OldCap + OldCap/2 + 1) * numThreads;
-      InstCount *NewIntFallback = new InstCount[2*NewCap];
-      HeurType *NewHeurFallback = new HeurType[NewCap];
-      pheromone_t *NewScoreFallback = new pheromone_t[NewCap];
-
-      // copy the data
-      InstCount NewInstrOffset = 0, NewReadyOnOffset = NewCap, HeurOffset = 0, ScoreOffset = 0;
-      for (int I = 0; I < CurrentSize; ++I) {
-        NewIntFallback[numThreads*(NewInstrOffset + I) + GLOBALTID] = InstrBase[numThreads*I + GLOBALTID];
-        NewIntFallback[numThreads*(NewReadyOnOffset + I) + GLOBALTID] = ReadyOnBase[numThreads*I + GLOBALTID];
-        NewHeurFallback[numThreads*(HeurOffset + I) + GLOBALTID] = HeurBase[numThreads*I + GLOBALTID];
-        NewScoreFallback[numThreads*(ScoreOffset + I) + GLOBALTID] = ScoreBase[numThreads*I + GLOBALTID];
-    }*/
   #else
     // check to see if we need to expand the allocation/get a new allocation
     if (CurrentSize == CurrentCapacity) {
@@ -322,64 +302,6 @@ void ACOReadyList::AllocDevArraysForParallelACO(int numThreads) {
   dev_HeurBase = dev_HeurAllocation;
   dev_ScoreBase = dev_ScoreAllocation;
 }
-
-/*void ACOReadyList::CopyPointersToDevice(ACOReadyList *dev_acoRdyLst, int numThreads) {
-  size_t memSize;
-
-  // copy over arrays
-  memSize = sizeof(InstCount*) * numThreads * 2;
-  for (int i = 0; i < numThreads; i++) {
-    gpuErrchk(cudaMemcpy(&dev_acoRdyLst->dev_IntAllocation[i], IntAllocation, memSize,
-	  	         cudaMemcpyHostToDevice));
-  }
-  memSize = sizeof(HeurType*) * numThreads;
-  for (int i = 0; i < numThreads; i++) {
-    gpuErrchk(cudaMemcpy(&dev_acoRdyLst->dev_HeurAllocation[i], HeurAllocation, memSize,
-	  	         cudaMemcpyHostToDevice));
-  }
-  memSize = sizeof(pheromone_t*) * numThreads;
-  for (int i = 0; i < numThreads; i++) {
-    gpuErrchk(cudaMemcpy(&dev_acoRdyLst->dev_ScoreAllocation[i], ScoreAllocation, memSize,
-	  	         cudaMemcpyHostToDevice));
-  }
-
-  // Alloc elmnts for each array
-  InstCount *temp_intArr;
-  memSize = sizeof(InstCount) * CurrentCapacity * numThreads * 2;
-  gpuErrchk(cudaMalloc(&temp_intArr, memSize));
-
-  HeurType *temp_HeurArr;
-  memSize = sizeof(HeurType) * CurrentCapacity * numThreads;
-  gpuErrchk(cudaMalloc(&temp_HeurArr, memSize));
-
-  pheromone_t *temp_scoreArr;
-  memSize = sizeof(pheromone_t) * CurrentCapacity * numThreads;
-  gpuErrchk(cudaMalloc(&temp_scoreArr, memSize));
-
-  // assign a chunk of each large array to each array
-  for (int i = 0; i < numThreads; i++) {
-    dev_acoRdyLst->dev_IntAllocation[i] = temp_intArr[i*CurrentCapacity];
-    dev_acoRdyLst->dev_IntAllocation[i + numThreads] = temp_intArr[i*CurrentCapacity + CurrentCapacity*numThreads];
-    dev_acoRdyLst->dev_HeurAllocation[i] = temp_HeurArr[i*CurrentCapacity];
-    dev_acoRdyLst->dev_ScoreAllocation[i] = temp_scoreArr[i*CurrentCapacity];
-  }
-
-  //build shortcut pointers
-  InstrBase = dev_IntAllocation;
-  ReadyOnBase = dev_IntAllocation + CurrentCapacity*numThreads;
-  HeurBase = dev_HeurAllocation;
-  ScoreBase = dev_ScoreAllocation;
-
-  // prefetch memory used with cudaMallocManaged
-  memSize = sizeof(InstCount*) * numThreads_ * 2;
-  gpuErrchk(cudaMemPrefetchAsync(dev_IntAllocation, memSize, 0));
-
-  memSize = sizeof(HeurType*) * numThreads_;
-  gpuErrchk(cudaMemPrefetchAsync(dev_HeurAllocation, memSize, 0));
-
-  memSize = sizeof(pheromone_t*) * numThreads_;
-  gpuErrchk(cudaMemPrefetchAsync(dev_ScoreAllocation, memSize, 0));
-}*/
 
 void ACOReadyList::FreeDevicePointers() {
   cudaFree(dev_IntAllocation);

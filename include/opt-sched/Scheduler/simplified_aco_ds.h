@@ -100,8 +100,6 @@ public:
   // Allocates arrays to hold independent values for each device thread during
   // parallel ACO
   void AllocDevArraysForParallelACO(int numThreads);
-  // Copy pointers to device and link them to passed device pointer
-  void CopyPointersToDevice(ACOReadyList *dev_acoRdyLst, int numThreads);
   // Calls cudaFree on all arrays/objects that were allocated with cudaMalloc
   void FreeDevicePointers();
 

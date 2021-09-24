@@ -87,7 +87,15 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   pheromone_.resize(pheromone_size);
 
   //construct the ACOReadyList member and a key helper
-  readyLs = new ACOReadyList(count_);
+  int maxIndpntInstrs = 0;
+  dataDepGraph->
+  for (int i = 0; i < count_; i++) {
+    int indpntInstrs = count_ - dataDepGraph->GetInstByIndx(i)->GetRcrsvPrdcsrCnt() - dataDepGraph->GetInstByIndx(i)->GetRcrsvScsrCnt();
+    maxIndpntInstrs = indpntInstrs > maxIndpntInstrs ? indpntInstrs : maxIndpntInstrs;
+    dataDepGraph->GetInstByIndx(i)
+  }
+  printf("Ready List Size is: %d, Percent of total number of instructions: %f\n", maxIndpntInstrs, double(maxIndpntInstrs)/double(count_));
+  readyLs = new ACOReadyList(maxIndpntInstrs);
   kHelper = new KeysHelper(priorities);
   kHelper->initForRegion(dataDepGraph);
 
@@ -1180,8 +1188,6 @@ void ACOScheduler::AllocDevArraysForParallelACO() {
   
   // Alloc dev array for readyLs;
   readyLs->AllocDevArraysForParallelACO(NUMTHREADS);
-  // Alloc dev array for kHelper;
-  // kHelper->AllocDevArraysForParallelACO(NUMTHREADS);
   // Alloc dev arrays for MaxScoringInst
   memSize = sizeof(InstCount) * NUMTHREADS;
   gpuErrchk(cudaMalloc(&dev_MaxScoringInst, memSize));
@@ -1318,7 +1324,6 @@ void ACOScheduler::FreeDevicePointers() {
   cudaFree(dev_instsWithPrdcsrsSchduld_[0]);
   cudaFree(dev_MaxScoringInst);
   readyLs->FreeDevicePointers();
-  // dev_kHelper->FreeDevicePointers();
   cudaFree(dev_avlblSlotsInCrntCycle_);
   cudaFree(dev_rsrvSlots_);
   cudaFree(dev_rsrvSlotCnt_);

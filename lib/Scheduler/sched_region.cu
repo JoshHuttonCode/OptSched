@@ -237,7 +237,8 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   stats::problemSize.Record(dataDepGraph_->GetInstCnt());
 
   const auto *GraphTransformations = dataDepGraph_->GetGraphTrans();
-  if (BbSchedulerEnabled || GraphTransformations->size() > 0 || 
+  // transitive closure is used for ready list sizing
+  if (AcoSchedulerEnabled || BbSchedulerEnabled || GraphTransformations->size() > 0 || 
       spillCostFunc_ == SCF_SLIL)
     needTransitiveClosure = true;
 
@@ -1025,6 +1026,7 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     InitCurand<<<NUMBLOCKS, NUMTHREADSPERBLOCK>>>(dev_states, 
                                                   unsigned(time(NULL)),
                                                   dataDepGraph_->GetInstCnt());
+    printf("Recursive predecessor count: %d\n", dataDepGraph_->GetInstByIndx(3)->GetRcrsvPrdcsrCnt());                                           
     ACOScheduler *AcoSchdulr = new ACOScheduler(
         dataDepGraph_, machMdl_, abslutSchedUprBound_, hurstcPrirts_,
         vrfySched_, IsPostBB, (SchedRegion *)dev_rgn, dev_DDG, dev_ready,
@@ -1046,6 +1048,7 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     gpuErrchk(cudaMemPrefetchAsync(dev_rgn, memSize, 0));
 
     // FindSchedule
+    // printf("Recursive predecessor count: %d\n", dataDepGraph_->GetInstByIndx(3)->GetRcrsvPrdcsrCnt());
     Rslt = AcoSchdulr->FindSchedule(ReturnSched, this, dev_AcoSchdulr);
 
     dev_AcoSchdulr->FreeDevicePointers();
