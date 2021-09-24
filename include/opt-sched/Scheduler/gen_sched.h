@@ -166,9 +166,6 @@ protected:
   // corresponding first-ready list of that cycle into the global sorted ready
   // list.
   ArrayList<InstCount> **frstRdyLstPerCycle_;
-  // On the device, use one PriorityArrayList with the instruction's rdyCycle
-  // as the key instead of maxLtncy+2 ArrayLists for each thread
-  PriorityArrayList<InstCount, InstCount> **dev_instsWithPrdcsrsSchduld_;
 
   // An array holding the number of issue slots available for each issue type
   // in the current machine cycle.

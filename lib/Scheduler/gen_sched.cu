@@ -94,8 +94,6 @@ ConstrainedScheduler::ConstrainedScheduler(DataDepGraph *dataDepGraph,
     frstRdyLstPerCycle_[i] = NULL;
   }
 
-  dev_instsWithPrdcsrsSchduld_ = NULL;
-
   rdyLst_ = NULL;
   crntSched_ = NULL;
   schduldInstCnt_ = 0;
@@ -134,8 +132,6 @@ bool ConstrainedScheduler::Initialize_(InstCount trgtSchedLngth,
   }
 
 #ifdef __CUDA_ARCH__
-  dev_instsWithPrdcsrsSchduld_[GLOBALTID]->
-	                   InsrtElmnt(rootInst_->GetNum(), 0, true);
 
   ResetRsrvSlots_();
   dev_rsrvSlotCnt_[GLOBALTID] = 0;
@@ -189,16 +185,7 @@ void ConstrainedScheduler::SchdulInst_(SchedInstruction *inst, InstCount) {
   if(!IsACO) {
     for (SchedInstruction *crntScsr = inst->GetFrstScsr(&prdcsrNum);
         crntScsr != NULL; crntScsr = inst->GetNxtScsr(&prdcsrNum)) {
-      bool wasLastPrdcsr =
-          crntScsr->PrdcsrSchduld(prdcsrNum, dev_crntCycleNum_[GLOBALTID], scsrRdyCycle);
-
-      if (wasLastPrdcsr) {
-        // If all other predecessors of this successor have been scheduled then
-        // we now know in which cycle this successor will become ready.
-        assert(scsrRdyCycle < schedUprBound_);
-        dev_instsWithPrdcsrsSchduld_[GLOBALTID]->
-                      InsrtElmnt(crntScsr->GetNum(), scsrRdyCycle, true);
-      }
+      crntScsr->PrdcsrSchduld(prdcsrNum, dev_crntCycleNum_[GLOBALTID], scsrRdyCycle);
     }
   }
   if (inst->BlocksCycle()) {

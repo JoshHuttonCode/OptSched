@@ -48,7 +48,6 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
                            SchedPriorities priorities, bool vrfySched, 
                            bool IsPostBB, SchedRegion *dev_rgn,
                            DataDepGraph *dev_DDG, 
-                           DeviceVector<Choice> *dev_ready,
 			   MachineModel *dev_MM, curandState_t *dev_states)
     : ConstrainedScheduler(dataDepGraph, machineModel, upperBound, true) {
   VrfySched_ = vrfySched;
@@ -58,7 +57,6 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   Config &schedIni = SchedulerOptions::getInstance();
   dev_rgn_ = dev_rgn;
   dev_DDG_ = dev_DDG;
-  dev_ready_ = dev_ready;
   dev_MM_ = dev_MM;
   dev_states_ = dev_states;
   dev_pheromone_elmnts_alloced_ = false;
@@ -88,13 +86,11 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
 
   //construct the ACOReadyList member and a key helper
   int maxIndpntInstrs = 0;
-  dataDepGraph->
   for (int i = 0; i < count_; i++) {
     int indpntInstrs = count_ - dataDepGraph->GetInstByIndx(i)->GetRcrsvPrdcsrCnt() - dataDepGraph->GetInstByIndx(i)->GetRcrsvScsrCnt();
     maxIndpntInstrs = indpntInstrs > maxIndpntInstrs ? indpntInstrs : maxIndpntInstrs;
-    dataDepGraph->GetInstByIndx(i)
   }
-  printf("Ready List Size is: %d, Percent of total number of instructions: %f\n", maxIndpntInstrs, double(maxIndpntInstrs)/double(count_));
+  Logger::Info("Ready List Size is: %d, Percent of total number of instructions: %f", maxIndpntInstrs, double(maxIndpntInstrs)/double(count_));
   readyLs = new ACOReadyList(maxIndpntInstrs);
   kHelper = new KeysHelper(priorities);
   kHelper->initForRegion(dataDepGraph);
@@ -251,8 +247,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
 
 __host__ __device__
 InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget, 
-                                            InstSchedule *dev_schedule,
-		                            DeviceVector<Choice> *dev_ready) {
+                                            InstSchedule *dev_schedule) {
 #ifdef __CUDA_ARCH__ // device version of function
   SchedInstruction *inst = NULL;
   SchedInstruction *lastInst = NULL;
@@ -563,8 +558,8 @@ __device__ int globalBestIndex, dev_noImprovement;
 __global__
 void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
             ACOScheduler *dev_AcoSchdulr, InstSchedule **dev_schedules,
-            DeviceVector<Choice> *dev_ready, InstSchedule *dev_bestSched,
-            int noImprovementMax, int *blockBestIndex) {
+            InstSchedule *dev_bestSched, int noImprovementMax, 
+            int *blockBestIndex) {
   // holds cost and index of bestSched per block
   __shared__ int bestIndex, dev_iterations;
   __shared__ bool needsSLIL;
@@ -590,8 +585,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     // Reset schedules to post constructor state
     dev_schedules[GLOBALTID]->Initialize();
     dev_AcoSchdulr->FindOneSchedule(RPTarget,
-                                    dev_schedules[GLOBALTID],
-                                    &dev_ready[GLOBALTID]);
+                                    dev_schedules[GLOBALTID]);
     // Sync threads after schedule creation
     threadGroup.sync();
     globalBestIndex = INVALID_VALUE;
@@ -806,15 +800,14 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     // of void pointers to host memory locations of the arguments
     dim3 gridDim(NUMBLOCKS);
     dim3 blockDim(NUMTHREADSPERBLOCK);
-    void *dArgs[8];
+    void *dArgs[7];
     dArgs[0] = (void*)&dev_rgn_;
     dArgs[1] = (void*)&dev_DDG_;
     dArgs[2] = (void*)&dev_AcoSchdulr;
     dArgs[3] = (void*)&dev_schedules;
-    dArgs[4] = (void*)&dev_ready_;
-    dArgs[5] = (void*)&dev_bestSched;
-    dArgs[6] = (void*)&noImprovementMax;
-    dArgs[7] = (void*)&dev_blockBestIndex;
+    dArgs[4] = (void*)&dev_bestSched;
+    dArgs[5] = (void*)&noImprovementMax;
+    dArgs[6] = (void*)&dev_blockBestIndex;
     gpuErrchk(cudaLaunchCooperativeKernel((void*)Dev_ACO, gridDim, blockDim, 
                                           dArgs));
     cudaDeviceSynchronize();
@@ -1199,9 +1192,6 @@ void ACOScheduler::AllocDevArraysForParallelACO() {
   for (int i = 0; i < NUMTHREADS; i++) {
     gpuErrchk(cudaMalloc(&dev_avlblSlotsInCrntCycle_[i], memSize));
   }
-  // Alloc dev arrays for dev_instsWithPrdcsrsSchduld_
-  memSize = sizeof(PriorityArrayList<InstCount, InstCount> *) * NUMTHREADS;
-  gpuErrchk(cudaMallocManaged(&dev_instsWithPrdcsrsSchduld_, memSize));
   // Alloc dev arrays for rsrvSlots_
   memSize = sizeof(ReserveSlot *) * NUMTHREADS;
   gpuErrchk(cudaMallocManaged(&dev_rsrvSlots_, memSize));
@@ -1252,39 +1242,6 @@ void ACOScheduler::CopyPointersToDevice(ACOScheduler *dev_ACOSchedulr) {
   // set root/leaf inst
   dev_ACOSchedulr->rootInst_ = dev_DDG_->GetRootInst();
   dev_ACOSchedulr->leafInst_ = dev_DDG_->GetLeafInst();
-  // Create an array of PriorityArrayLists, allocate dev mem for it 
-  // and elmnts_ for each one, and copy it to device
-  PriorityArrayList<InstCount, InstCount> *temp = 
-    new PriorityArrayList<InstCount, InstCount>[NUMTHREADS];
-  // Allocate elmnts_ and keys_ for all PArrayLists
-  InstCount *dev_elmnts, *dev_keys;
-  memSize = sizeof(InstCount) * count_ * NUMTHREADS;
-  gpuErrchk(cudaMalloc(&dev_elmnts, memSize));
-  gpuErrchk(cudaMalloc(&dev_keys, memSize));
-  // set correct maxSize, elmnts_, and keys_ for each PArrayList
-  for (int i = 0; i < NUMTHREADS; i++) {
-    temp[i].maxSize_ = count_;
-    temp[i].elmnts_ = &dev_elmnts[i * count_];
-    temp[i].keys_ = &dev_keys[i * count_];
-  }
-  // Alloc dev mem and copy array of PArrayLists to device
-  PriorityArrayList<InstCount, InstCount> *dev_array;
-  memSize = sizeof(PriorityArrayList<InstCount, InstCount>) * NUMTHREADS;
-  gpuErrchk(cudaMallocManaged(&dev_array, memSize));
-  gpuErrchk(cudaMemcpy(dev_array, temp, memSize, cudaMemcpyHostToDevice));
-  // set dev_instsWithPrdcsrsScheduld_ pointers to each PAL in array
-  for (int i = 0; i < NUMTHREADS; i++)
-    dev_instsWithPrdcsrsSchduld_[i] = &dev_array[i];
-  // make sure host also has a copy of array for later deletion
-  memSize = sizeof(PriorityArrayList<InstCount, InstCount>) * NUMTHREADS;
-  gpuErrchk(cudaMemPrefetchAsync(dev_array, memSize, cudaCpuDeviceId));
-  // remove references to dev arrays in host copy and delete host copy
-  for (int i = 0; i < NUMTHREADS; i++) {
-    temp[i].elmnts_ = NULL;
-    temp[i].keys_ = NULL;
-  }
-  delete[] temp;
-
   // copy readyLs
   memSize = sizeof(ACOReadyList);
   gpuErrchk(cudaMalloc(&dev_ACOSchedulr->dev_readyLs, memSize));
@@ -1298,8 +1255,6 @@ void ACOScheduler::CopyPointersToDevice(ACOScheduler *dev_ACOSchedulr) {
   // make sure cudaMallocManaged memory is copied to device before kernel start
   memSize = sizeof(int16_t *) * NUMTHREADS;
   gpuErrchk(cudaMemPrefetchAsync(dev_avlblSlotsInCrntCycle_, memSize, 0));
-  memSize = sizeof(PriorityArrayList<InstCount, InstCount> *) * NUMTHREADS;
-  gpuErrchk(cudaMemPrefetchAsync(dev_instsWithPrdcsrsSchduld_, memSize, 0));
   memSize = sizeof(ReserveSlot *) * NUMTHREADS;
   gpuErrchk(cudaMemPrefetchAsync(dev_rsrvSlots_, memSize, 0));
 }
@@ -1313,21 +1268,14 @@ void ACOScheduler::FreeDevicePointers() {
   cudaFree(slotsPerTypePerCycle_);
   cudaFree(instCntPerIssuType_);
   for (int i = 0; i < NUMTHREADS; i++){
-    //cudaFree(dev_instsWithPrdcsrsSchduld_[i]->elmnts_);
-    //cudaFree(dev_instsWithPrdcsrsSchduld_[i]->keys_);
-    //cudaFree(dev_instsWithPrdcsrsSchduld_[i]);
     cudaFree(dev_avlblSlotsInCrntCycle_[i]);
     cudaFree(dev_rsrvSlots_[i]);
   }
-  cudaFree(dev_instsWithPrdcsrsSchduld_[0]->elmnts_);
-  cudaFree(dev_instsWithPrdcsrsSchduld_[0]->keys_);
-  cudaFree(dev_instsWithPrdcsrsSchduld_[0]);
   cudaFree(dev_MaxScoringInst);
   readyLs->FreeDevicePointers();
   cudaFree(dev_avlblSlotsInCrntCycle_);
   cudaFree(dev_rsrvSlots_);
   cudaFree(dev_rsrvSlotCnt_);
-  cudaFree(dev_instsWithPrdcsrsSchduld_);
   cudaFree(dev_readyLs);
   cudaFree(dev_kHelper);
   cudaFree(pheromone_.elmnts_);

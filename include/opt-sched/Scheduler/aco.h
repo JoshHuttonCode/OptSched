@@ -54,7 +54,6 @@ public:
                InstCount upperBound, SchedPriorities priorities,
                bool vrfySched, bool IsPostBB, SchedRegion *dev_rgn = NULL,
 	       DataDepGraph *dev_DDG = NULL,
-	       DeviceVector<Choice> *dev_ready = NULL,
 	       MachineModel *dev_MM = NULL, curandState_t *dev_states = NULL);
   __host__ __device__
   virtual ~ACOScheduler();
@@ -78,8 +77,7 @@ public:
   // of creating a new one
   __host__ __device__
   InstSchedule *FindOneSchedule(InstCount RPTarget,
-                                InstSchedule *dev_schedule = NULL, 
-		                DeviceVector<Choice> *dev_ready = NULL);
+                                InstSchedule *dev_schedule = NULL);
   __host__ __device__
   void UpdatePheromone(InstSchedule *schedule);
   // Copies pheromone table to passed shared memory array
@@ -139,7 +137,6 @@ private:
   DCF_OPT DCFOption;
   SPILL_COST_FUNCTION DCFCostFn;
   DataDepGraph *dev_DDG_;
-  DeviceVector<Choice> *dev_ready_;
   MachineModel *dev_MM_;
   // Holds state for each thread for RNG
   curandState_t *dev_states_;
