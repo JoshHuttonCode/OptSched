@@ -155,7 +155,7 @@ inline size_t ACOReadyList::getTotalSizeInBytes() const {
 __host__ __device__
 inline InstCount *ACOReadyList::getInstIdAtIndex(InstCount Indx) const {
   #ifdef __CUDA_ARCH__
-    return dev_InstrBase + Indx;
+    return dev_InstrBase + Indx*numThreads_ + GLOBALTID;
   #else
     return InstrBase + Indx;
   #endif
@@ -164,7 +164,7 @@ inline InstCount *ACOReadyList::getInstIdAtIndex(InstCount Indx) const {
 __host__ __device__
 inline InstCount *ACOReadyList::getInstReadyOnAtIndex(InstCount Indx) const {
   #ifdef __CUDA_ARCH__
-    return dev_ReadyOnBase + Indx;
+    return dev_ReadyOnBase + Indx*numThreads_ + GLOBALTID;
   #else
     return ReadyOnBase + Indx;
   #endif
@@ -173,7 +173,7 @@ inline InstCount *ACOReadyList::getInstReadyOnAtIndex(InstCount Indx) const {
 __host__ __device__
 inline HeurType *ACOReadyList::getInstHeuristicAtIndex(InstCount Indx) const {
   #ifdef __CUDA_ARCH__
-    return dev_HeurBase + Indx;
+    return dev_HeurBase + Indx*numThreads_ + GLOBALTID;
   #else
     return HeurBase + Indx;
   #endif
@@ -182,7 +182,7 @@ inline HeurType *ACOReadyList::getInstHeuristicAtIndex(InstCount Indx) const {
 __host__ __device__
 inline pheromone_t *ACOReadyList::getInstScoreAtIndex(InstCount Indx) const {
   #ifdef __CUDA_ARCH__
-    return dev_ScoreBase + Indx;
+    return dev_ScoreBase + Indx*numThreads_ + GLOBALTID;
   #else
     return ScoreBase + Indx;
   #endif
