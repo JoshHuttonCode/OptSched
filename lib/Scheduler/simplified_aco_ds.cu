@@ -169,25 +169,21 @@ ACOReadyList::~ACOReadyList() {
 // This is just a heuristic for the ready list size.
 // A better function should be chosen experimentally
 InstCount ACOReadyList::computePrimaryCapacity(InstCount RegionSize) {
-  //return std::max(32, RegionSize/4);
   return RegionSize;
 }
 
 __host__ __device__
 void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
   #ifdef __CUDA_ARCH__
-    if (dev_CurrentSize[GLOBALTID] == CurrentCapacity) {
-      printf("ERROR: The Ready List of thread %d ran out of capacity\n", GLOBALTID);
-      exit(1);
-    } 
+    // Ready List should never be resized on device, assume it will never overflow capacity
+    assert(dev_CurrentSize[GLOBALTID] < CurrentCapacity);
+
     //add the instruction to the ready list
     dev_InstrBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.InstId;
     dev_ReadyOnBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.ReadyOn;
     dev_HeurBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Heuristic;
     dev_ScoreBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Score;
     ++dev_CurrentSize[GLOBALTID];
-    
-
   #else
     // check to see if we need to expand the allocation/get a new allocation
     if (CurrentSize == CurrentCapacity) {
