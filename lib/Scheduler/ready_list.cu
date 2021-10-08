@@ -63,7 +63,7 @@ void KeysHelper::initForRegion(DataDepGraph *DDG) {
   KeysSz = CurrentOffset;
 
   //set maximumvalues needed to compute keys
-  MaxNID = MaxKVs[LSH_NID];
+  MaxNID = DDG->GetInstCnt() - 1;
   MaxISO = MaxKVs[LSH_ISO];
 
   // mark the object as initialized
