@@ -1044,6 +1044,10 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
       pheromone_t IScore = Score(InstId, CandidateId, Heur);
       dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
       *dev_readyLs->getInstScoreAtIndex(I) = IScore;
+      // reduce the score of instructions that we would have to wait on
+      if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID] + 1) {
+        IScore = IScore/4;
+      }
       if(IScore > MaxScore) {
         MaxScoreIndx = I;
         MaxScore = IScore;
@@ -1087,6 +1091,10 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
       pheromone_t IScore = Score(InstId, CandidateId, Heur);
       readyLs->ScoreSum += IScore;
       *readyLs->getInstScoreAtIndex(I) = IScore;
+      // reduce the score of instructions that we would have to wait on
+      if (*readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_ + 1) {
+        IScore = IScore/4;
+      }
       if(IScore > MaxScore) {
         MaxScoreIndx = I;
         MaxScore = IScore;
