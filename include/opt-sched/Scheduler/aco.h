@@ -22,7 +22,7 @@ namespace llvm {
 namespace opt_sched {
 
 // If set to 1 ACO is run on device
-#define DEV_ACO 1
+#define DEV_ACO 0
 // setting to 1 locks ACO to iterations_without_improvement iterations
 #define RUNTIME_TESTING 1
 // Minimum region node count. Doesn't make sence to launch DEV_ACO on small rgns
@@ -30,8 +30,8 @@ namespace opt_sched {
 // use edge count to approximate memory usage, using nodeCnt reflect
 // memory usage as well. Smaller node count DAGs can use more memory.
 #define REGION_MAX_EDGE_CNT 800000
-#define NUMBLOCKS 80
-#define NUMTHREADSPERBLOCK 32
+#define NUMBLOCKS 4
+#define NUMTHREADSPERBLOCK 8
 #define NUMTHREADS NUMBLOCKS * NUMTHREADSPERBLOCK
 
 enum class DCF_OPT {

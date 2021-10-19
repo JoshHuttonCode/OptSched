@@ -187,6 +187,60 @@ bool ACOScheduler::shouldReplaceSchedule(InstSchedule *OldSched,
 
 __host__ __device__
 InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
+  // calculate MaxScoringInst, and ScoreSum
+  pheromone_t MaxScore = -1;
+  InstCount MaxScoreIndx = 0;
+  // int penaltyForWaiting = 0;
+  int lastInstId = lastInst->GetNum();
+  // bool necessaryStall = true;
+#ifdef __CUDA_ARCH__
+  dev_readyLs->dev_ScoreSum[GLOBALTID] = 0;
+  for (InstCount I = 0; I < dev_readyLs->getReadyListSize(); ++I) {
+    // compute the score
+    HeurType Heur = *dev_readyLs->getInstHeuristicAtIndex(I);
+    pheromone_t IScore = Score(lastInstId, *dev_readyLs->getInstIdAtIndex(I), Heur);
+
+    *dev_readyLs->getInstScoreAtIndex(I) = IScore;
+    dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
+    // if (justWaited && *dev_readyLs.getInstReadyOnAtIndex(I) > crntCycleNum_) {
+    // add a score penalty for instructions that are not ready yet
+    if (*dev_readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
+      IScore = IScore/16;
+    }
+    // if (*dev_readyLs.getInstReadyOnAtIndex(I) <= crntCycleNum_) {
+    // else {
+    //   necessaryStall = false;
+    // }
+    
+    if(IScore > MaxScore) {
+      MaxScoreIndx = I;
+      MaxScore = IScore;
+    }
+  }
+#else
+  readyLs->ScoreSum = 0;
+  for (InstCount I = 0; I < readyLs->getReadyListSize(); ++I) {
+    // compute the score
+    HeurType Heur = *readyLs->getInstHeuristicAtIndex(I);
+    pheromone_t IScore = Score(lastInstId, *readyLs->getInstIdAtIndex(I), Heur);
+
+    *readyLs->getInstScoreAtIndex(I) = IScore;
+    readyLs->ScoreSum += IScore;
+    // if (justWaited && *readyLs.getInstReadyOnAtIndex(I) > crntCycleNum_) {
+    if (*readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
+      IScore = IScore/16;
+    }
+    // if (*readyLs.getInstReadyOnAtIndex(I) <= crntCycleNum_) {
+    // else {
+    //   necessaryStall = false;
+    // }
+    
+    if(IScore > MaxScore) {
+      MaxScoreIndx = I;
+      MaxScore = IScore;
+    }
+  }
+#endif
 
   //generate the random numbers that we will need for deciding if
   //we are going to use the fixed bias or if we are going to use
@@ -237,11 +291,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
   #endif
   //finally we pick whether we will return the fp choice or max score inst w/o using a branch
   bool UseMax = rand < choose_best_chance;
-  #ifdef __CUDA_ARCH__
-    size_t indx = UseMax ? dev_MaxScoringInst[GLOBALTID] : fpIndx;
-  #else
-    size_t indx = UseMax ? MaxScoringInst : fpIndx;
-  #endif
+  size_t indx = UseMax ? MaxScoreIndx : fpIndx;
   return indx;
 }
 
@@ -277,6 +327,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   dev_readyLs->addInstructionToReadyList(InitialRoot);
   dev_readyLs->dev_ScoreSum[GLOBALTID] = RootScore;
   dev_MaxScoringInst[GLOBALTID] = 0;
+  lastInst = dataDepGraph_->GetInstByIndx(RootId);
 
   while (!IsSchedComplete_()) {
 
@@ -386,6 +437,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   readyLs->addInstructionToReadyList(InitialRoot);
   readyLs->ScoreSum = RootScore;
   MaxScoringInst = 0;
+  lastInst = dataDepGraph_->GetInstByIndx(RootId);
 
   SchedInstruction *inst = NULL;
   while (!IsSchedComplete_()) {
@@ -1005,7 +1057,6 @@ void ACOScheduler::CopyPheromonesToSharedMem(double *s_pheromone) {
 
 inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
   InstCount prdcsrNum, scsrRdyCycle;
-  InstCount InstId = inst->GetNum();
   
   #ifdef __CUDA_ARCH__ // device version of function
     // Notify each successor of this instruction that it has been scheduled.
@@ -1024,9 +1075,6 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
 
     // Make sure the scores are valid.  The scheduling of an instruction may
     // have increased another instruction's LUC Score
-    pheromone_t MaxScore = -1;
-    InstCount MaxScoreIndx = 0;
-    dev_readyLs->dev_ScoreSum[GLOBALTID] = 0;
     PriorityEntry LUCEntry = dev_kHelper->getPriorityEntry(LSH_LUC);
     for (InstCount I = 0; I < dev_readyLs->getReadyListSize(); ++I) {
       //we first get the heuristic without the LUC component, add the LUC
@@ -1039,21 +1087,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
         LUCVal <<= LUCEntry.Offset;
         Heur &= LUCVal;
       }
-
-      // compute the score
-      pheromone_t IScore = Score(InstId, CandidateId, Heur);
-      dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
-      *dev_readyLs->getInstScoreAtIndex(I) = IScore;
-      // reduce the score of instructions that we would have to wait on
-      if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID] + 1) {
-        IScore = IScore/4;
-      }
-      if(IScore > MaxScore) {
-        MaxScoreIndx = I;
-        MaxScore = IScore;
-      }
     }
-    dev_MaxScoringInst[GLOBALTID] = MaxScoreIndx;
   #else // host version of function
     // Notify each successor of this instruction that it has been scheduled.
     for (SchedInstruction *crntScsr = inst->GetFrstScsr(&prdcsrNum);
@@ -1071,9 +1105,6 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
 
     // Make sure the scores are valid.  The scheduling of an instruction may
     // have increased another instruction's LUC Score
-    pheromone_t MaxScore = -1;
-    InstCount MaxScoreIndx = 0;
-    readyLs->ScoreSum = 0;
     PriorityEntry LUCEntry = kHelper->getPriorityEntry(LSH_LUC);
     for (InstCount I = 0; I < readyLs->getReadyListSize(); ++I) {
       //we first get the heuristic without the LUC component, add the LUC
@@ -1086,21 +1117,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
         LUCVal <<= LUCEntry.Offset;
         Heur &= LUCVal;
       }
-
-      // compute the score
-      pheromone_t IScore = Score(InstId, CandidateId, Heur);
-      readyLs->ScoreSum += IScore;
-      *readyLs->getInstScoreAtIndex(I) = IScore;
-      // reduce the score of instructions that we would have to wait on
-      if (*readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_ + 1) {
-        IScore = IScore/4;
-      }
-      if(IScore > MaxScore) {
-        MaxScoreIndx = I;
-        MaxScore = IScore;
-      }
     }
-    MaxScoringInst = MaxScoreIndx;
   #endif
 }
 
