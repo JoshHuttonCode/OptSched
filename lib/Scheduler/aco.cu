@@ -367,6 +367,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       if (ChkInstLglty_(waitFor)) {
         inst = waitFor;
         waitFor = NULL;
+        lastInst = inst;
       }
     }
 
