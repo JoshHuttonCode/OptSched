@@ -202,12 +202,16 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
 
     *dev_readyLs->getInstScoreAtIndex(I) = IScore;
     dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
-    // if (justWaited && *dev_readyLs.getInstReadyOnAtIndex(I) > crntCycleNum_) {
+    // if (GLOBALTID==0)
+    //   printf("instNum: %d, instScore: %f\n", *dev_readyLs->getInstIdAtIndex(I), IScore);
+    if (justWaited && *dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
     // add a score penalty for instructions that are not ready yet
-    if (*dev_readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
+    // if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
+      // if (GLOBALTID==0)
+      //   printf("Not ready: %d, crnt:%d, readyon: ", *dev_readyLs->getInstIdAtIndex(I), dev_crntCycleNum_[GLOBALTID], dev_readyLs->getInstReadyOnAtIndex(I));
       IScore = IScore/16;
     }
-    // if (*dev_readyLs.getInstReadyOnAtIndex(I) <= crntCycleNum_) {
+    // if (*dev_readyLs->getInstReadyOnAtIndex(I) <= dev_crntCycleNum_[GLOBALTID]) {
     // else {
     //   necessaryStall = false;
     // }
@@ -226,11 +230,11 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
 
     *readyLs->getInstScoreAtIndex(I) = IScore;
     readyLs->ScoreSum += IScore;
-    // if (justWaited && *readyLs.getInstReadyOnAtIndex(I) > crntCycleNum_) {
-    if (*readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
+    if (justWaited && *readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
+    // if (*readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
       IScore = IScore/16;
     }
-    // if (*readyLs.getInstReadyOnAtIndex(I) <= crntCycleNum_) {
+    // if (*readyLs->getInstReadyOnAtIndex(I) <= crntCycleNum_) {
     // else {
     //   necessaryStall = false;
     // }
@@ -292,6 +296,12 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
   //finally we pick whether we will return the fp choice or max score inst w/o using a branch
   bool UseMax = rand < choose_best_chance;
   size_t indx = UseMax ? MaxScoreIndx : fpIndx;
+  // #ifdef __CUDA_ARCH__
+  //   if (GLOBALTID==0)
+  //     printf("UseMax: %s, maxInstNum: %d, maxInstScore: %f, fpInstNum: %d, readySize: %d\n", UseMax ? "true" : "false", *dev_readyLs->getInstIdAtIndex(MaxScoreIndx), *dev_readyLs->getInstScoreAtIndex(MaxScoreIndx), *dev_readyLs->getInstIdAtIndex(fpIndx), dev_readyLs->getReadyListSize());
+  // #else
+  //   printf("UseMax: %s, maxInstNum: %d, maxInstScore: %f, fpInstNum: %d, readySize: %d\n", UseMax ? "true" : "false", *readyLs->getInstIdAtIndex(MaxScoreIndx), *readyLs->getInstScoreAtIndex(MaxScoreIndx), *readyLs->getInstIdAtIndex(fpIndx), dev_readyLs->getReadyListSize());
+  // #endif
   return indx;
 }
 
@@ -347,6 +357,10 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       if (waitUntil > crntCycleNum_ || !ChkInstLglty_(inst)) {
         waitFor = inst;
         inst = NULL;
+        justWaited = true;
+      }
+      else {
+        justWaited = false;
       }
 
       if (inst != NULL) {
@@ -461,6 +475,10 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       if (waitUntil > crntCycleNum_ || !ChkInstLglty_(inst)) {
         waitFor = inst;
         inst = NULL;
+        justWaited = true;
+      }
+      else {
+        justWaited = false;
       }
 
       if (inst != NULL) {
@@ -480,6 +498,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       if (ChkInstLglty_(waitFor)) {
         inst = waitFor;
         waitFor = NULL;
+        lastInst = inst;
       }
     }
 

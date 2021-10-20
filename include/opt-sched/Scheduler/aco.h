@@ -144,6 +144,8 @@ private:
   int returnLastInstCnt_;
   // Used to count how many ants are terminated early
   int numAntsTerminated_;
+
+  bool justWaited = false;
 };
 
 } // namespace opt_sched
