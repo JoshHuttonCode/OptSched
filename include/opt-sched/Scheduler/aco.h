@@ -88,6 +88,8 @@ public:
                              bool IsGlobal);
   __host__ __device__
   InstCount GetNumAntsTerminated() { return numAntsTerminated_; }
+  __host__ __device__
+  void SetGlobalBestStalls(int stalls) { globalBestStalls_ = stalls; }
 
 private:
   __host__ __device__
@@ -100,7 +102,7 @@ private:
   __host__ __device__
   void PrintPheromone();
   __host__ __device__
-  InstCount SelectInstruction(SchedInstruction *lastInst);
+  InstCount SelectInstruction(SchedInstruction *lastInst, int totalStalls, SchedRegion rgn, bool &unnecessarilyStalling);
   __host__ __device__
   void UpdateACOReadyList(SchedInstruction *Inst);
   DeviceVector<pheromone_t> pheromone_;
@@ -146,6 +148,8 @@ private:
   int numAntsTerminated_;
 
   bool justWaited = false;
+  int globalBestStalls_ = 0;
+
 };
 
 } // namespace opt_sched
