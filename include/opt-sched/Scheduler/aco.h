@@ -102,7 +102,7 @@ private:
   __host__ __device__
   void PrintPheromone();
   __host__ __device__
-  InstCount SelectInstruction(SchedInstruction *lastInst, int totalStalls, SchedRegion rgn, bool &unnecessarilyStalling);
+  InstCount SelectInstruction(SchedInstruction *lastInst, int totalStalls, SchedRegion *rgn, bool &unnecessarilyStalling);
   __host__ __device__
   void UpdateACOReadyList(SchedInstruction *Inst);
   DeviceVector<pheromone_t> pheromone_;
