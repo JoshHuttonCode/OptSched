@@ -209,7 +209,12 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
     // if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
       // if (GLOBALTID==0)
       //   printf("Not ready: %d, crnt:%d, readyon: ", *dev_readyLs->getInstIdAtIndex(I), dev_crntCycleNum_[GLOBALTID], dev_readyLs->getInstReadyOnAtIndex(I));
-      IScore = IScore/16;
+      // if (GLOBALTID==0)
+      //   printf("Not ready: %d, crnt: %d, readyon: %d, div by: %f iscore before: %f", *dev_readyLs->getInstIdAtIndex(I), dev_crntCycleNum_[GLOBALTID], *dev_readyLs->getInstReadyOnAtIndex(I), 1/(double)(1 + *dev_readyLs->getInstReadyOnAtIndex(I) - dev_crntCycleNum_[GLOBALTID]), IScore);
+      IScore = IScore/(double)(1 + *dev_readyLs->getInstReadyOnAtIndex(I) - dev_crntCycleNum_[GLOBALTID]);
+      // if (GLOBALTID==0)
+      //   printf(" Iscore after: %f\n", IScore);
+      // IScore = IScore/16;
     }
     // if (*dev_readyLs->getInstReadyOnAtIndex(I) <= dev_crntCycleNum_[GLOBALTID]) {
     // else {
@@ -232,7 +237,8 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst) {
     readyLs->ScoreSum += IScore;
     if (justWaited && *readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
     // if (*readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
-      IScore = IScore/16;
+      IScore = IScore/(double)(1 + *readyLs->getInstReadyOnAtIndex(I) - crntCycleNum_);
+      // IScore = IScore/16;
     }
     // if (*readyLs->getInstReadyOnAtIndex(I) <= crntCycleNum_) {
     // else {

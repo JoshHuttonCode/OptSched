@@ -1004,7 +1004,7 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
                                                   unsigned(time(NULL)),
                                                   dataDepGraph_->GetInstCnt());                                       
     ACOScheduler *AcoSchdulr = new ACOScheduler(
-        dataDepGraph_, machMdl_, abslutSchedUprBound_, hurstcPrirts_,
+        dataDepGraph_, machMdl_, abslutSchedUprBound_, enumPrirts_,
         vrfySched_, IsPostBB, (SchedRegion *)dev_rgn, dev_DDG,
         dev_machMdl_, dev_states);
     AcoSchdulr->setInitialSched(InitSched);
@@ -1045,7 +1045,7 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
   } else {
     ACOScheduler *AcoSchdulr = 
         new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_,
-                         hurstcPrirts_, vrfySched_, IsPostBB);
+                         enumPrirts_, vrfySched_, IsPostBB);
     AcoSchdulr->setInitialSched(InitSched);
     Rslt = AcoSchdulr->FindSchedule(ReturnSched, this);
     delete AcoSchdulr;
