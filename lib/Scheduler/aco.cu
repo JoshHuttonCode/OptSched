@@ -205,6 +205,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, int totalS
     pheromone_t IScore = Score(lastInstId, *dev_readyLs->getInstIdAtIndex(I), Heur);
 
     *dev_readyLs->getInstScoreAtIndex(I) = IScore;
+    dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
     // if (GLOBALTID==0)
     //   printf("instNum: %d, instScore: %f, crnt: %d, readyon: %d\n", *dev_readyLs->getInstIdAtIndex(I), IScore, dev_crntCycleNum_[GLOBALTID], dev_readyLs->getInstReadyOnAtIndex(I));
     if (justWaited && *dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
@@ -216,12 +217,13 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, int totalS
       //   printf("Not ready: %d, crnt: %d, readyon: %d, div by: %f iscore before: %f", *dev_readyLs->getInstIdAtIndex(I), dev_crntCycleNum_[GLOBALTID], *dev_readyLs->getInstReadyOnAtIndex(I), 1/(double)(1 + *dev_readyLs->getInstReadyOnAtIndex(I) - dev_crntCycleNum_[GLOBALTID]), IScore);
       // thrust::maximum<double> dmax;
       // IScore = dmax(1, IScore/(double)(1 + *dev_readyLs->getInstReadyOnAtIndex(I) - dev_crntCycleNum_[GLOBALTID]));
-      IScore = IScore/16;
+      // IScore = IScore/16;
+      IScore = IScore/(double)(1 + *dev_readyLs->getInstReadyOnAtIndex(I) - dev_crntCycleNum_[GLOBALTID]);
       // if (GLOBALTID==0)
       //   printf(" Iscore after: %f\n", IScore);
     }
     // else {
-      dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
+      // dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
     // }
     if (*dev_readyLs->getInstReadyOnAtIndex(I) <= dev_crntCycleNum_[GLOBALTID]) {
     // else {
@@ -356,7 +358,6 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   dev_readyLs->clearReadyList();
   ScRelMax = dev_rgn_->GetHeuristicCost();
   bool unnecessarilyStalling = false;
-  bool isCurrentRpLow = false;
 
   // The MaxPriority that we are getting from the ready list represents
   // the maximum possible heuristic/key value that we can have
@@ -388,7 +389,6 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       assert(dev_readyLs->getReadyListSize());
 
       // select the instruction and get info on it
-      // isCurrentRpLow = ((BBWithSpill *)dev_rgn_)->GetCrntSpillCost() <= dataDepGraph_->GetPhysRegCnt() * 0.5;
       
       InstCount SelIndx = SelectInstruction(lastInst, schedule->getTotalStalls(), dev_rgn_, unnecessarilyStalling);
       LastInstInfo = dev_readyLs->removeInstructionAtIndex(SelIndx);
@@ -479,7 +479,6 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   schedule = new InstSchedule(machMdl_, dataDepGraph_, true);
   bool IsSecondPass = rgn_->IsSecondPass();
   bool unnecessarilyStalling;
-  bool isCurrentRpLow = false;
   // The MaxPriority that we are getting from the ready list represents the maximum possible heuristic/key value that we can have
   // I want to move all the heuristic computation stuff to another class for code tidiness reasons.
   HeurType MaxPriority = kHelper->getMaxValue();
