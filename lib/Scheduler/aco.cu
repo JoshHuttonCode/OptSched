@@ -207,7 +207,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, int totalS
     *dev_readyLs->getInstScoreAtIndex(I) = IScore;
     // if (GLOBALTID==0)
     //   printf("instNum: %d, instScore: %f, crnt: %d, readyon: %d\n", *dev_readyLs->getInstIdAtIndex(I), IScore, dev_crntCycleNum_[GLOBALTID], dev_readyLs->getInstReadyOnAtIndex(I));
-    // if (justWaited && *dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
+    if (justWaited && *dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
     // if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
     // add a score penalty for instructions that are not ready yet
     // unnecessary stalls should not be considered if current RP is low, or if we already have too many stalls
@@ -219,7 +219,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, int totalS
       IScore = IScore/16;
       // if (GLOBALTID==0)
       //   printf(" Iscore after: %f\n", IScore);
-    // }
+    }
     // else {
       dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
     // }
@@ -400,11 +400,11 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       if (waitUntil > crntCycleNum_ || !ChkInstLglty_(inst)) {
         waitFor = inst;
         inst = NULL;
-        // justWaited = true;
+        justWaited = true;
       }
-      // else {
-      //   justWaited = false;
-      // }
+      else {
+        justWaited = false;
+      }
 
       if (inst != NULL) {
 #if USE_ACS
@@ -523,11 +523,11 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       if (waitUntil > crntCycleNum_ || !ChkInstLglty_(inst)) {
         waitFor = inst;
         inst = NULL;
-        // justWaited = true;
+        justWaited = true;
       }
-      // else {
-      //   justWaited = false;
-      // }
+      else {
+        justWaited = false;
+      }
 
       if (inst != NULL) {
   #if USE_ACS
