@@ -797,6 +797,8 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     // wait for other blocks to finish before starting next iteration
     threadGroup.sync();
     // make sure no threads reset schedule before above operations complete
+    dev_schedules[GLOBALTID]->resetTotalStalls();
+    dev_schedules[GLOBALTID]->resetUnnecessaryStalls();
     if (threadIdx.x == 0)
       dev_iterations++;
   }

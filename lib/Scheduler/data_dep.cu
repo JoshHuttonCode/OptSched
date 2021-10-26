@@ -2963,6 +2963,8 @@ void InstSchedule::Copy(InstSchedule *src) {
   execCost_ = src->execCost_;
   NormSpillCost = src->NormSpillCost;
   spillCost_ = src->spillCost_;
+  totalStalls_ = src->totalStalls_;
+  unnecessaryStalls_ = src->unnecessaryStalls_;
 }
 
 __host__ __device__

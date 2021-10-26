@@ -843,13 +843,17 @@ public:
   __device__
   void Initialize();
   __host__ __device__
-  void incrementTotalStalls() {totalStalls_++;}
+  inline void incrementTotalStalls() {totalStalls_++;}
   __host__ __device__
-  void incrementUnnecessaryStalls() {unnecessaryStalls_++;}
+  inline void incrementUnnecessaryStalls() {unnecessaryStalls_++;}
   __host__ __device__
-  int getTotalStalls() const {return totalStalls_;}
+  inline void resetTotalStalls() {totalStalls_ = 0;}
   __host__ __device__
-  int getUnnecessaryStalls() const {return unnecessaryStalls_;}
+  inline void resetUnnecessaryStalls() {unnecessaryStalls_ = 0;}
+  __host__ __device__
+  inline int getTotalStalls() const {return totalStalls_;}
+  __host__ __device__
+  inline int getUnnecessaryStalls() const {return unnecessaryStalls_;}
 };
 /*****************************************************************************/
 
