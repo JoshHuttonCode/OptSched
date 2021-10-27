@@ -190,15 +190,13 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, int totalS
   // calculate MaxScoringInst, and ScoreSum
   pheromone_t MaxScore = -1;
   InstCount MaxScoreIndx = 0;
-  // int penaltyForWaiting = 0;
   int lastInstId = lastInst->GetNum();
   // this bool is to check if stalling could be avoided
   bool couldAvoidStalling = false;
   // this bool is to check if we should currently avoid unnecessary stalls
   // because RP is low or we have too many stalls in the schedule
-  // bool tooManyStalls = totalStalls >= globalBestStalls_;
   bool RPIsHigh = false;
-  bool tooManyStalls = totalStalls > globalBestStalls_;
+  bool tooManyStalls = totalStalls >= globalBestStalls_;
 #ifdef __CUDA_ARCH__
   // if (GLOBALTID == 0) {
   //   printf("current stalls: %d, global best stalls: %d, too many: %s\n", totalStalls, globalBestStalls_, totalStalls > globalBestStalls_ ? "true" : "false");
@@ -211,22 +209,14 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, int totalS
 
     *dev_readyLs->getInstScoreAtIndex(I) = IScore;
     dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
-    // if (GLOBALTID==0)
-    //   printf("instNum: %d, instScore: %f, crnt: %d, readyon: %d\n", *dev_readyLs->getInstIdAtIndex(I), IScore, dev_crntCycleNum_[GLOBALTID], dev_readyLs->getInstReadyOnAtIndex(I));
-    // if (justWaited && *dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
-    if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
     // add a score penalty for instructions that are not ready yet
     // unnecessary stalls should not be considered if current RP is low, or if we already have too many stalls
-    // if (avoidStalling && *dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
-      // if (GLOBALTID==0)
-      //   printf("Not ready: %d, crnt: %d, readyon: %d, div by: %f iscore before: %f", *dev_readyLs->getInstIdAtIndex(I), dev_crntCycleNum_[GLOBALTID], *dev_readyLs->getInstReadyOnAtIndex(I), 1/(double)(1 + *dev_readyLs->getInstReadyOnAtIndex(I) - dev_crntCycleNum_[GLOBALTID]), IScore);
-      // thrust::maximum<double> dmax;
-      // IScore = dmax(1, IScore/(double)(1 + *dev_readyLs->getInstReadyOnAtIndex(I) - dev_crntCycleNum_[GLOBALTID]));
+    if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
       // IScore = IScore/16;
       SchedInstruction *tempInst = dataDepGraph_->GetInstByIndx(*dev_readyLs->getInstIdAtIndex(I));
+
       // if (GLOBALTID == 0)
       //   printf("instId: %d, Uses: %d, defs: %d\n", *dev_readyLs->getInstIdAtIndex(I), tempInst->GetUseCnt(), tempInst->GetDefCnt());
-
       RegIndxTuple *tempUses;
       Register *use;
       auto usesCount = tempInst->GetUses(tempUses);
@@ -244,14 +234,8 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, int totalS
       if (!RPIsHigh || tooManyStalls)
         // IScore = IScore/(double)(1 + *dev_readyLs->getInstReadyOnAtIndex(I) - dev_crntCycleNum_[GLOBALTID]);
         IScore = IScore/16;
-      // if (GLOBALTID==0)
-      //   printf(" Iscore after: %f\n", IScore);
     }
-    // else {
-      // dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
-    // }
-    if (*dev_readyLs->getInstReadyOnAtIndex(I) <= dev_crntCycleNum_[GLOBALTID]) {
-    // else {
+    else {
       couldAvoidStalling = true;
     }
     
