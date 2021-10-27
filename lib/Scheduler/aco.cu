@@ -254,13 +254,32 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, int totalS
     *readyLs->getInstScoreAtIndex(I) = IScore;
     readyLs->ScoreSum += IScore;
     if (*readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
+      SchedInstruction *tempInst = dataDepGraph_->GetInstByIndx(*dev_readyLs->getInstIdAtIndex(I));
+
+      // if (GLOBALTID == 0)
+      //   printf("instId: %d, Uses: %d, defs: %d\n", *dev_readyLs->getInstIdAtIndex(I), tempInst->GetUseCnt(), tempInst->GetDefCnt());
+      RegIndxTuple *tempUses;
+      Register *use;
+      auto usesCount = tempInst->GetUses(tempUses);
+      for (uint16_t i = 0; i < usesCount; i++) {
+        use = dataDepGraph_->getRegByTuple(&tempUses[i]);
+        // if (GLOBALTID == 0)
+        //   printf("Reg Type: %d\n", use->GetType());
+        if ( (rgn_->IsRPHigh(use->GetType()) ) {
+          RPIsHigh = true;
+          break;
+        }
+        
+      }
+      if (!RPIsHigh || tooManyStalls)
+        // IScore = IScore/(double)(1 + *dev_readyLs->getInstReadyOnAtIndex(I) - dev_crntCycleNum_[GLOBALTID]);
+        IScore = IScore/16;
     // if (justWaited && *readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
     // if (avoidStalling && *readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_) {
       // thrust::maximum<double> dmax;
       // IScore = dmax(1, IScore/(double)(1 + *readyLs->getInstReadyOnAtIndex(I) - crntCycleNum_));
       // IScore = IScore/16;
       // IScore = IScore/(double)(1 + *readyLs->getInstReadyOnAtIndex(I) - crntCycleNum_);
-      IScore = IScore/16;
     }
     // else {
     //   readyLs->ScoreSum += IScore;
@@ -1000,6 +1019,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
         bestSchedule = std::move(iterationBest);
         if (!((BBWithSpill *)rgn_)->needsSLIL())
           RPTarget = bestSchedule->GetSpillCost();
+        // AcoSchdulr->SetGlobalBestStalls(bestSchedule->getTotalStalls());
         printf("ACO found schedule "
                "cost:%d, rp cost:%d, exec cost: %d, and "
                "iteration:%d"
