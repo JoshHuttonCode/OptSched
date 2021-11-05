@@ -2629,6 +2629,7 @@ InstSchedule::InstSchedule(MachineModel *machMdl, DataDepGraph *dataDepGraph,
   totSpillCost_ = 0;
   cnflctCnt_ = 0;
   spillCnddtCnt_ = 0;
+  totalStalls_ = 0;
 }
 
 InstSchedule::~InstSchedule() {
@@ -2672,6 +2673,9 @@ bool InstSchedule::AppendInst(InstCount instNum) {
     }
 
 #endif
+  }
+  else {
+    totalStalls_++;
   }
 
 #ifdef IS_DEBUG_SCHED2
@@ -2742,6 +2746,7 @@ void InstSchedule::Reset() {
   crntSlotNum_ = 0;
   maxSchduldInstCnt_ = 0;
   maxInstNumSchduld_ = -1;
+  totalStalls_ = 0;
   cost_ = INVALID_VALUE;
 }
 
@@ -2759,6 +2764,7 @@ void InstSchedule::Copy(InstSchedule *src) {
   execCost_ = src->execCost_;
   spillCost_ = src->spillCost_;
   NormSpillCost = src->NormSpillCost;
+  totalStalls_ = 0;
 
   for (int i = 0; i < MAX_SCHED_PRIRTS; ++i)
     storedSC[i] = src->storedSC[i];

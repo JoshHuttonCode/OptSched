@@ -2,9 +2,9 @@
 #include "opt-sched/Scheduler/config.h"
 #include "opt-sched/Scheduler/data_dep.h"
 #include "opt-sched/Scheduler/random.h"
-#include "opt-sched/Scheduler/ready_list.h"
 #include "opt-sched/Scheduler/register.h"
 #include "opt-sched/Scheduler/sched_region.h"
+#include "opt-sched/Scheduler/bb_spill.h"
 #include "llvm/ADT/STLExtras.h"
 #include <iomanip>
 #include <iostream>
@@ -220,7 +220,9 @@ DCF_OPT ACOScheduler::ParseDCFOpt(const std::string &opt) {
 }
 
 Choice ACOScheduler::SelectInstruction(const llvm::ArrayRef<Choice> &ready,
-                                       SchedInstruction *lastInst) {
+                                       SchedInstruction *lastInst, InstCount totalStalls, 
+                                       SchedRegion *rgn, bool closeToRPTarget, 
+                                       bool currentlyWaiting) {
 #if TWO_STEP
   double choose_best_chance;
   if (use_fixed_bias)
@@ -228,14 +230,95 @@ Choice ACOScheduler::SelectInstruction(const llvm::ArrayRef<Choice> &ready,
   else
     choose_best_chance = bias_ratio;
 
-  if (RandDouble(0, 1) < choose_best_chance) {
+  // loop through instructions to see if all fully-ready instructions have a negative effect on RP
+  // if there are no fully-ready instructions, then onlyRPNegative will be true
+  bool onlyRPNegative = true;
+  for (auto &choice : ready) {
+    // For this, do not consider instructions that are semi-ready,
+    // consider them once they become fully ready
+    if (choice.readyOn > crntCycleNum_)
+      continue;
+    
+    SchedInstruction *candidateInst = choice.inst;
+    int16_t candidateLUC = candidateInst->GetLastUseCnt();
+    int16_t candidateDefs = candidateInst->NumDefs();
+    if (candidateDefs <= candidateLUC) {
+      onlyRPNegative = false;
+      break;
+    }
+  }
+
+  // if we are waiting and have no fully-ready instruction that is 
+  // net 0 or benefit to RP, then return -1 to schedule a stall
+  if (currentlyWaiting && onlyRPNegative) {
+    Choice c;
+    c.inst = nullptr;
+    return c;
+  }
+
+  if (RandDouble(0, 1) < choose_best_chance || currentlyWaiting) {
     if (print_aco_trace)
       std::cerr << "choose_best, use fixed bias: " << use_fixed_bias << "\n";
     pheromone_t max = -1;
     Choice maxChoice;
+    bool RPIsHigh = false;
+    bool tooManyStalls = totalStalls >= globalBestStalls_ * 5 / 10;
+
     for (auto &choice : ready) {
-      if (Score(lastInst, choice) > max) {
-        max = Score(lastInst, choice);
+      RPIsHigh = false;
+      SchedInstruction *candidateInst = choice.inst;
+      int16_t candidateLUC = candidateInst->GetLastUseCnt();
+      int16_t candidateDefs = candidateInst->NumDefs();
+      InstCount choiceReadyOn = choice.readyOn;
+      // std::cout << "looking at: " << maxChoice.inst->GetNum() << "\n";
+      if (currentlyWaiting) {
+        // if currently waiting on an instruction, do not consider semi-ready instructions 
+        if (choiceReadyOn > crntCycleNum_)
+          continue;
+
+        // as well as instructions with a net negative impact on RP
+        if (candidateDefs > candidateLUC)
+          continue;
+      }
+      pheromone_t IScore = Score(lastInst, choice);
+      if (!onlyRPNegative && candidateDefs > candidateLUC)
+        IScore = IScore * 9/10;
+      if (choiceReadyOn > crntCycleNum_) {
+        // if instruction is semi-ready and we have fully-ready choices 
+        // that are not RP Negative, avoid selecting the instruction
+        if (!onlyRPNegative) {
+          IScore = 0.0000001;
+        }
+        // if we only have RP Negative instructions, consider the semi-ready instruction
+        // but apply score penalties
+        else {
+          int cyclesNeededToWait = choiceReadyOn - crntCycleNum_;
+          if (cyclesNeededToWait < globalBestStalls_)
+            IScore = IScore * (globalBestStalls_ - cyclesNeededToWait) / globalBestStalls_;
+          else 
+            IScore = IScore / globalBestStalls_;
+          
+          for (Register *use : candidateInst->GetUses()) {
+            int16_t regType = use->GetType();
+            if ( ((BBWithSpill *)rgn)->IsRPHigh(regType) ) {
+              RPIsHigh = true;
+              break;
+            }
+          }
+
+          // reduce likelihood of selecting an instruction we have to wait for IF
+          // RP is low or we have too many stalls already
+          if (!(closeToRPTarget && RPIsHigh) || tooManyStalls) {
+            if (globalBestStalls_ > totalStalls)
+              IScore = IScore * (globalBestStalls_ - totalStalls) / globalBestStalls_;
+            else
+              IScore = IScore / globalBestStalls_;
+          }
+        }
+      }
+
+      if (IScore > max) {
+        max = IScore;
         maxChoice = choice;
       }
     }
@@ -296,15 +379,17 @@ std::unique_ptr<InstSchedule> ACOScheduler::FindOneSchedule(InstCount TargetRPCo
 
   SchedInstruction *waitFor = NULL;
   InstCount waitUntil = 0;
-  double maxPriorityInv = 1 / maxPriority;
+  double maxPriorityInv = 1 / (double) maxPriority;
   llvm::SmallVector<Choice, 0> ready;
+  bool closeToRPTarget = false;
+
   while (!IsSchedComplete_()) {
     UpdtRdyLst_(crntCycleNum_, crntSlotNum_);
 
     // there are two steps to scheduling an instruction:
     // 1)Select the instruction(if we are not waiting on another instruction)
     SchedInstruction *inst = NULL;
-    if (!waitFor) {
+    if (!(waitFor && waitUntil <= crntCycleNum_)) {
       // if we have not already committed to schedule an instruction
       // next then pick one. First add ready instructions.  Including
       //"illegal" e.g. blocked instructions
@@ -358,11 +443,17 @@ std::unique_ptr<InstSchedule> ACOScheduler::FindOneSchedule(InstCount TargetRPCo
 #endif
 
       if (!ready.empty()) {
-        Choice Sel = SelectInstruction(ready, lastInst);
-        waitUntil = Sel.readyOn;
-        inst = Sel.inst;
-        if (waitUntil > crntCycleNum_ || !ChkInstLglty_(inst)) {
-          waitFor = inst;
+        closeToRPTarget = rgn_->getUnnormalizedIncrementalRPCost() >= std::min(TargetRPCost - 2, TargetRPCost * 9 / 10);
+        Choice Sel = SelectInstruction(ready, lastInst, schedule->getTotalStalls(), rgn_, closeToRPTarget, waitFor ? true : false);
+        if (Sel.inst) {
+          inst = Sel.inst;
+          if (Sel.readyOn > crntCycleNum_ || !ChkInstLglty_(inst)) {
+            waitUntil = Sel.readyOn;
+            waitFor = inst;
+            inst = NULL;
+          }
+        }
+        else {
           inst = NULL;
         }
       }
@@ -388,6 +479,7 @@ std::unique_ptr<InstSchedule> ACOScheduler::FindOneSchedule(InstCount TargetRPCo
       if (ChkInstLglty_(waitFor)) {
         inst = waitFor;
         waitFor = NULL;
+        lastInst = inst;
       }
     }
 
@@ -467,6 +559,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     pheromone_[i] = 1;
   initialValue_ = 1;
   InstCount MaxRPTarget = std::numeric_limits<InstCount>::max();
+  SetGlobalBestStalls(std::max(1, InitialSchedule->GetCrntLngth() - dataDepGraph_->GetInstCnt()));
   std::unique_ptr<InstSchedule> heuristicSched = FindOneSchedule(MaxRPTarget);
   InstCount heuristicCost =
       heuristicSched->GetCost() + 1; // prevent divide by zero
@@ -480,20 +573,18 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
   for (int i = 0; i < pheromone_size; i++)
     pheromone_[i] = initialValue_;
   std::cerr << "initialValue_" << initialValue_ << std::endl;
-
   std::unique_ptr<InstSchedule> bestSchedule = std::move(InitialSchedule);
   if (bestSchedule) {
     UpdatePheromone(bestSchedule.get());
   }
   writePheromoneGraph("initial");
-
   int noImprovement = 0; // how many iterations with no improvement
   int iterations = 0;
   while (true) {
     std::unique_ptr<InstSchedule> iterationBest;
     for (int i = 0; i < ants_per_iteration; i++) {
       CrntAntEdges.clear();
-      std::unique_ptr<InstSchedule> schedule = FindOneSchedule(i && iterationBest && rgn_->GetSpillCostFunc() != SCF_SLIL ? iterationBest->GetNormSpillCost() : MaxRPTarget);
+      std::unique_ptr<InstSchedule> schedule = FindOneSchedule(i && rgn_->GetSpillCostFunc() != SCF_SLIL ? bestSchedule->GetSpillCost() : MaxRPTarget);
       if (print_aco_trace)
         PrintSchedule(schedule.get());
       ++localCmp;
@@ -517,6 +608,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     if (shouldReplaceSchedule(bestSchedule.get(), iterationBest.get(),
                               /*IsGlobal=*/true)) {
       bestSchedule = std::move(iterationBest);
+      SetGlobalBestStalls(std::max(1, bestSchedule->GetCrntLngth() - dataDepGraph_->GetInstCnt()));
       Logger::Info("ACO found schedule with spill cost %d",
                    bestSchedule->GetCost());
       Logger::Info("ACO found schedule "
@@ -549,7 +641,8 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
 
   Logger::Event(IsPostBB ? "AcoPostSchedComplete" : "ACOSchedComplete", "cost",
                 bestSchedule->GetCost(), "iterations", iterations,
-                "improvement", InitialCost - bestSchedule->GetCost());
+                "improvement", InitialCost - bestSchedule->GetCost(), "RPCost", bestSchedule->GetSpillCost(),
+                "length", bestSchedule->GetCrntLngth());
   PrintSchedule(bestSchedule.get());
   schedule_out->Copy(bestSchedule.release());
 

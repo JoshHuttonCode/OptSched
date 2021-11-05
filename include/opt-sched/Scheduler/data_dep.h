@@ -649,6 +649,7 @@ private:
   MachineModel *machMdl_;
 
   bool vrfy_;
+  InstCount totalStalls_;
 
   bool VerifySlots_(MachineModel *machMdl, DataDepGraph *dataDepGraph);
   bool VerifyDataDeps_(DataDepGraph *dataDepGraph);
@@ -712,6 +713,8 @@ public:
   void PrintRegPressures() const;
   bool Verify(MachineModel *machMdl, DataDepGraph *dataDepGraph);
   void PrintClassData();
+  inline void resetTotalStalls() {totalStalls_ = 0;}
+  inline InstCount getTotalStalls() const {return totalStalls_;}
 };
 /*****************************************************************************/
 

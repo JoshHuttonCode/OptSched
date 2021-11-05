@@ -970,7 +970,7 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
   InitForSchdulng();
   ACOScheduler *AcoSchdulr =
       new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_,
-                       hurstcPrirts_, vrfySched_, IsPostBB);
+                       enumPrirts_, vrfySched_, IsPostBB);
   AcoSchdulr->setInitialSched(InitSched);
   FUNC_RESULT Rslt = AcoSchdulr->FindSchedule(ReturnSched, this);
   delete AcoSchdulr;

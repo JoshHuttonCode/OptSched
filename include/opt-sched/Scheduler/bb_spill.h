@@ -145,6 +145,9 @@ public:
   bool ChkInstLglty(SchedInstruction *inst);
   bool needsSLIL();
   void InitForSchdulng();
+  bool IsRPHigh(int regType) const {
+    return regPressures_[regType] > (unsigned int) machMdl_->GetPhysRegCnt(regType);
+  }
 
 protected:
   // (Chris)

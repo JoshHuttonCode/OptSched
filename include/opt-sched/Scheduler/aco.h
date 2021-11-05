@@ -76,9 +76,12 @@ private:
   // pheromone Graph Debugging end
 
   Choice SelectInstruction(const llvm::ArrayRef<Choice> &ready,
-                           SchedInstruction *lastInst);
+                           SchedInstruction *lastInst, InstCount totalStalls, 
+                           SchedRegion *rgn, bool closeToRPTarget, 
+                           bool currentlyWaiting);
   void UpdatePheromone(InstSchedule *schedule);
   std::unique_ptr<InstSchedule> FindOneSchedule(InstCount TargetRPCost);
+  void inline SetGlobalBestStalls(int stalls) { globalBestStalls_ = stalls; }
   llvm::SmallVector<pheromone_t, 0> pheromone_;
   pheromone_t initialValue_;
   bool use_fixed_bias;
@@ -102,7 +105,7 @@ private:
   DCF_OPT DCFOption;
   SPILL_COST_FUNCTION DCFCostFn;
   int localCmp=0, localCmpRej=0, globalCmp=0, globalCmpRej=0;
-
+  int globalBestStalls_ = 0;
 };
 
 } // namespace opt_sched
