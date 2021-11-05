@@ -233,29 +233,31 @@ Choice ACOScheduler::SelectInstruction(const llvm::ArrayRef<Choice> &ready,
   // loop through instructions to see if all fully-ready instructions have a negative effect on RP
   // if there are no fully-ready instructions, then onlyRPNegative will be true
   bool onlyRPNegative = true;
-  for (auto &choice : ready) {
-    // For this, do not consider instructions that are semi-ready,
-    // consider them once they become fully ready
-    if (choice.readyOn > crntCycleNum_)
-      continue;
-    
-    SchedInstruction *candidateInst = choice.inst;
-    int16_t candidateLUC = candidateInst->GetLastUseCnt();
-    int16_t candidateDefs = candidateInst->NumDefs();
-    if (candidateDefs <= candidateLUC) {
-      onlyRPNegative = false;
-      break;
+  // RP Negative checks only affect second pass
+  if (!rgn_->IsSecondPass()) {
+    for (auto &choice : ready) {
+      // For this, do not consider instructions that are semi-ready,
+      // consider them once they become fully ready
+      if (choice.readyOn > crntCycleNum_)
+        continue;
+      
+      SchedInstruction *candidateInst = choice.inst;
+      int16_t candidateLUC = candidateInst->GetLastUseCnt();
+      int16_t candidateDefs = candidateInst->NumDefs();
+      if (candidateDefs <= candidateLUC) {
+        onlyRPNegative = false;
+        break;
+      }
+    }
+
+    // if we are waiting and have no fully-ready instruction that is 
+    // net 0 or benefit to RP, then return -1 to schedule a stall
+    if (currentlyWaiting && onlyRPNegative) {
+      Choice c;
+      c.inst = nullptr;
+      return c;
     }
   }
-
-  // if we are waiting and have no fully-ready instruction that is 
-  // net 0 or benefit to RP, then return -1 to schedule a stall
-  if (currentlyWaiting && onlyRPNegative) {
-    Choice c;
-    c.inst = nullptr;
-    return c;
-  }
-
   if (RandDouble(0, 1) < choose_best_chance || currentlyWaiting) {
     if (print_aco_trace)
       std::cerr << "choose_best, use fixed bias: " << use_fixed_bias << "\n";
@@ -265,61 +267,70 @@ Choice ACOScheduler::SelectInstruction(const llvm::ArrayRef<Choice> &ready,
     bool tooManyStalls = totalStalls >= globalBestStalls_ * 5 / 10;
 
     for (auto &choice : ready) {
-      RPIsHigh = false;
-      SchedInstruction *candidateInst = choice.inst;
-      int16_t candidateLUC = candidateInst->GetLastUseCnt();
-      int16_t candidateDefs = candidateInst->NumDefs();
-      InstCount choiceReadyOn = choice.readyOn;
-      // std::cout << "looking at: " << maxChoice.inst->GetNum() << "\n";
-      if (currentlyWaiting) {
-        // if currently waiting on an instruction, do not consider semi-ready instructions 
-        if (choiceReadyOn > crntCycleNum_)
-          continue;
+      // this is to avoid affecting the first pass
+      if (!rgn_->IsSecondPass()) {
+        RPIsHigh = false;
+        SchedInstruction *candidateInst = choice.inst;
+        int16_t candidateLUC = candidateInst->GetLastUseCnt();
+        int16_t candidateDefs = candidateInst->NumDefs();
+        InstCount choiceReadyOn = choice.readyOn;
+        // std::cout << "looking at: " << maxChoice.inst->GetNum() << "\n";
+        if (currentlyWaiting) {
+          // if currently waiting on an instruction, do not consider semi-ready instructions 
+          if (choiceReadyOn > crntCycleNum_)
+            continue;
 
-        // as well as instructions with a net negative impact on RP
-        if (candidateDefs > candidateLUC)
-          continue;
-      }
-      pheromone_t IScore = Score(lastInst, choice);
-      if (!onlyRPNegative && candidateDefs > candidateLUC)
-        IScore = IScore * 9/10;
-      if (choiceReadyOn > crntCycleNum_) {
-        // if instruction is semi-ready and we have fully-ready choices 
-        // that are not RP Negative, avoid selecting the instruction
-        if (!onlyRPNegative) {
-          IScore = 0.0000001;
+          // as well as instructions with a net negative impact on RP
+          if (candidateDefs > candidateLUC)
+            continue;
         }
-        // if we only have RP Negative instructions, consider the semi-ready instruction
-        // but apply score penalties
-        else {
-          int cyclesNeededToWait = choiceReadyOn - crntCycleNum_;
-          if (cyclesNeededToWait < globalBestStalls_)
-            IScore = IScore * (globalBestStalls_ - cyclesNeededToWait) / globalBestStalls_;
-          else 
-            IScore = IScore / globalBestStalls_;
-          
-          for (Register *use : candidateInst->GetUses()) {
-            int16_t regType = use->GetType();
-            if ( ((BBWithSpill *)rgn)->IsRPHigh(regType) ) {
-              RPIsHigh = true;
-              break;
+        pheromone_t IScore = Score(lastInst, choice);
+        if (!onlyRPNegative && candidateDefs > candidateLUC)
+          IScore = IScore * 9/10;
+        if (choiceReadyOn > crntCycleNum_) {
+          // if instruction is semi-ready and we have fully-ready choices 
+          // that are not RP Negative, avoid selecting the instruction
+          if (!onlyRPNegative) {
+            IScore = 0.0000001;
+          }
+          // if we only have RP Negative instructions, consider the semi-ready instruction
+          // but apply score penalties
+          else {
+            int cyclesNeededToWait = choiceReadyOn - crntCycleNum_;
+            if (cyclesNeededToWait < globalBestStalls_)
+              IScore = IScore * (globalBestStalls_ - cyclesNeededToWait) / globalBestStalls_;
+            else 
+              IScore = IScore / globalBestStalls_;
+            
+            for (Register *use : candidateInst->GetUses()) {
+              int16_t regType = use->GetType();
+              if ( ((BBWithSpill *)rgn)->IsRPHigh(regType) ) {
+                RPIsHigh = true;
+                break;
+              }
+            }
+
+            // reduce likelihood of selecting an instruction we have to wait for IF
+            // RP is low or we have too many stalls already
+            if (!(closeToRPTarget && RPIsHigh) || tooManyStalls) {
+              if (globalBestStalls_ > totalStalls)
+                IScore = IScore * (globalBestStalls_ - totalStalls) / globalBestStalls_;
+              else
+                IScore = IScore / globalBestStalls_;
             }
           }
+        }
 
-          // reduce likelihood of selecting an instruction we have to wait for IF
-          // RP is low or we have too many stalls already
-          if (!(closeToRPTarget && RPIsHigh) || tooManyStalls) {
-            if (globalBestStalls_ > totalStalls)
-              IScore = IScore * (globalBestStalls_ - totalStalls) / globalBestStalls_;
-            else
-              IScore = IScore / globalBestStalls_;
-          }
+        if (IScore > max) {
+          max = IScore;
+          maxChoice = choice;
         }
       }
-
-      if (IScore > max) {
-        max = IScore;
-        maxChoice = choice;
+      else {
+        if (Score(lastInst, choice) > max) {
+          max = Score(lastInst, choice);
+          maxChoice = choice;
+        } 
       }
     }
     return maxChoice;
@@ -584,7 +595,15 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     std::unique_ptr<InstSchedule> iterationBest;
     for (int i = 0; i < ants_per_iteration; i++) {
       CrntAntEdges.clear();
-      std::unique_ptr<InstSchedule> schedule = FindOneSchedule(i && rgn_->GetSpillCostFunc() != SCF_SLIL ? bestSchedule->GetSpillCost() : MaxRPTarget);
+      // this is to avoid affecting the first pass
+      InstCount RPTarget;
+      if (IsFirst && iterationBest)
+        RPTarget = iterationBest->GetNormSpillCost();
+      else if (!IsFirst)
+        RPTarget = bestSchedule->GetSpillCost();
+      else
+        RPTarget = MaxRPTarget;
+      std::unique_ptr<InstSchedule> schedule = FindOneSchedule(i && rgn_->GetSpillCostFunc() != SCF_SLIL ? RPTarget : MaxRPTarget);
       if (print_aco_trace)
         PrintSchedule(schedule.get());
       ++localCmp;
