@@ -843,6 +843,7 @@ void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex, ACOSch
 #define PHER_UPDATE_SCHEME ONE_PER_ITER
 
 __device__ int globalBestIndex, dev_noImprovement;
+__device__ bool lowerBoundSchedFound;
 
 __global__
 void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
@@ -858,6 +859,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
   ((BBWithSpill *)dev_rgn)->SetRegFiles(dev_DDG->getRegFiles());
   dev_noImprovement = 0;
   dev_iterations = 0;
+  lowerBoundSchedFound = false;
   // Used to synchronize all launched threads
   auto threadGroup = cg::this_grid();
   // Get RPTarget
@@ -871,7 +873,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
   
   dev_AcoSchdulr->SetGlobalBestStalls(dev_bestSched->GetCrntLngth() - dev_DDG->GetInstCnt());
   // Start ACO
-  while (dev_noImprovement < noImprovementMax) {
+  while (dev_noImprovement < noImprovementMax && !lowerBoundSchedFound) {
     // Reset schedules to post constructor state
     dev_schedules[GLOBALTID]->Initialize();
     dev_AcoSchdulr->FindOneSchedule(RPTarget,
@@ -954,7 +956,12 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
           // for testing compile times disable resetting dev_noImprovement to
           // allow the same number of iterations every time
           atomicAdd(&dev_noImprovement, 1);
-#endif     
+#endif
+        // if a schedule is found with the cost at the lower bound
+        // exit the loop after the current iteration is finished
+        if ( dev_bestSched && ( dev_bestSched->GetCost() == 0 || ( IsSecondPass && dev_bestSched->GetExecCost() == 0 ) ) ) {
+          lowerBoundSchedFound = true;
+        }
       } else {
         atomicAdd(&dev_noImprovement, 1);
         if (dev_noImprovement > noImprovementMax)
@@ -1177,16 +1184,18 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
                "cost:%d, rp cost:%d, exec cost: %d, and "
                "iteration:%d"
                " (sched length: %d, abs rp cost: %d, rplb: %d)\n",
-             bestSchedule->GetCost(), bestSchedule->GetNormSpillCost(),
-             bestSchedule->GetExecCost(), iterations,
-             bestSchedule->GetCrntLngth(), bestSchedule->GetSpillCost(),
-             rgn_->GetRPCostLwrBound());
+               bestSchedule->GetCost(), bestSchedule->GetNormSpillCost(),
+               bestSchedule->GetExecCost(), iterations,
+               bestSchedule->GetCrntLngth(), bestSchedule->GetSpillCost(),
+               rgn_->GetRPCostLwrBound());
 #if !RUNTIME_TESTING
           noImprovement = 0;
 #else
           // Disable resetting noImp to lock iterations to 10
           noImprovement++;
 #endif
+        if (bestSchedule && ( bestSchedule->GetCost() == 0 || ( !IsFirst && bestSchedule->GetExecCost() == 0 ) ) )
+          break;
       } else {
         delete iterationBest;
         noImprovement++;
