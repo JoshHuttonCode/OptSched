@@ -221,17 +221,11 @@ public:
   __host__ __device__
   bool IsRPHigh(int regType) const {
     #ifdef __CUDA_ARCH__
-      int pressure = dev_regPressures_[regType][GLOBALTID];
-      int physCount = machMdl_->GetPhysRegCnt(regType);
-      // if (GLOBALTID == 0)
-      //   printf("type: %d, pressure: %d, phys count: %d, div: %f, high: %s\n", regType, pressure, physCount, (double) pressure / (double) physCount, (double) pressure / (double) physCount > 0.8 ? "true" : "false");
-      
-      return (double) pressure / (double) physCount > 0.8;
+    return dev_regPressures_[regType][GLOBALTID] > (unsigned int) machMdl_->GetPhysRegCnt(regType);
     #else
-      return (double) (regPressures_[regType] - machMdl_->GetPhysRegCnt(regType)) / (double) (machMdl_->GetPhysRegCnt(regType) > 0.8 ? true : false);
+      return regPressures_[regType] > (unsigned int) machMdl_->GetPhysRegCnt(regType);
     #endif
   }
-
 protected:
   // (Chris)
   inline virtual const int *GetSLIL_() const {
