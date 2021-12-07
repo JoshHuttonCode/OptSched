@@ -161,12 +161,6 @@ private:
   void UpdateSpillInfoForSchdul_(SchedInstruction *inst, bool trackCnflcts);
   void UpdateSpillInfoForUnSchdul_(SchedInstruction *inst);
   void SetupPhysRegs_();
-  // can only compute SLIL if SLIL was the spillCostFunc
-  // This function must only be called after the regPressures_ is computed
-  InstCount CmputCostForFunction(SPILL_COST_FUNCTION SpillCF);
-  // Device version of above function
-  __device__
-  InstCount Dev_CmputCostForFunction(SPILL_COST_FUNCTION SpillCF);
   __host__ __device__
   void CmputCrntSpillCost_();
   bool ChkSchedule_(InstSchedule *bestSched, InstSchedule *lstSched);
@@ -218,6 +212,14 @@ public:
   bool needsSLIL();
   __host__ __device__
   InstCount GetCrntSpillCost();
+  // can only compute SLIL if SLIL was the spillCostFunc
+  // This function must only be called after the regPressures_ is computed
+  InstCount CmputCostForFunction(SPILL_COST_FUNCTION SpillCF);
+  // Device version of above function
+  __device__
+  InstCount Dev_CmputCostForFunction(SPILL_COST_FUNCTION SpillCF);
+  __host__ __device__
+  InstCount ReturnPeakSpillCost();
   __host__ __device__
   bool IsRPHigh(int regType) const {
     #ifdef __CUDA_ARCH__

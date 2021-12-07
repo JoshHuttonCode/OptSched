@@ -568,6 +568,7 @@ void BBWithSpill::UpdateSpillInfoForSchdul_(SchedInstruction *inst,
   Register *def, *use;
   int liveRegs;
   InstCount newSpillCost;
+  InstCount perpValueForSlil;
 
   defCnt = inst->GetDefs(defs);
   useCnt = inst->GetUses(uses);
@@ -673,9 +674,17 @@ void BBWithSpill::UpdateSpillInfoForSchdul_(SchedInstruction *inst,
     }
   }
 
-  if (GetSpillCostFunc() == SCF_SLIL)
+  if (GetSpillCostFunc() == SCF_SLIL) {
     dev_slilSpillCost_[GLOBALTID] = 
                    Dev_CmputCostForFunction(GetSpillCostFunc());
+    // calculate PERP with SLIL to consider schedules with PERP of 0
+    // even if SLIL is higher
+    perpValueForSlil = Dev_CmputCostForFunction(SCF_PERP);
+    if (dev_peakSpillCost_[GLOBALTID] < perpValueForSlil)
+      dev_peakSpillCost_[GLOBALTID] = perpValueForSlil;
+    // if (GLOBALTID==0)
+    //   printf("current ERP: %d, PERP: %d\n", perpValueForSlil, dev_peakSpillCost_[GLOBALTID]);
+  }
   else
     newSpillCost = Dev_CmputCostForFunction(GetSpillCostFunc());
 
@@ -821,8 +830,14 @@ void BBWithSpill::UpdateSpillInfoForSchdul_(SchedInstruction *inst,
     }
   }
   
-  if (GetSpillCostFunc() == SCF_SLIL)
+  if (GetSpillCostFunc() == SCF_SLIL) {
     slilSpillCost_ = CmputCostForFunction(GetSpillCostFunc());
+    // calculate PERP with SLIL to consider schedules with PERP of 0
+    // even if SLIL is higher
+    perpValueForSlil = CmputCostForFunction(SCF_PERP);
+    if (peakSpillCost_ < perpValueForSlil)
+      peakSpillCost_ = perpValueForSlil;
+  } 
   else
     newSpillCost = CmputCostForFunction(GetSpillCostFunc());
 
@@ -1432,6 +1447,15 @@ InstCount BBWithSpill::GetCrntSpillCost() {
   return dev_crntSpillCost_[GLOBALTID];
 #else
   return crntSpillCost_;
+#endif
+}
+
+__host__ __device__
+InstCount BBWithSpill::ReturnPeakSpillCost() {
+#ifdef __CUDA_ARCH__ // Device version of function
+  return dev_peakSpillCost_[GLOBALTID];
+#else
+  return peakSpillCost_;
 #endif
 }
 

@@ -370,6 +370,29 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
 #endif
   }
 
+  // (Chris): If the cost function is SLIL, then the list schedule is considered
+  // optimal if PERP is 0.
+  if (filterByPerp && !isLstOptml && spillCostFunc_ == SCF_SLIL) {
+    const InstCount *regPressures = nullptr;
+    auto regTypeCount = lstSched->GetPeakRegPressures(regPressures);
+    InstCount sumPerp = 0;
+    for (int i = 0; i < regTypeCount; ++i) {
+      int perp = regPressures[i] - machMdl_->GetPhysRegCnt(i);
+      if (perp > 0)
+        sumPerp += perp;
+    }
+    if (sumPerp == 0) {
+      isLstOptml = IsSecondPass() ? lstSched->GetCrntLngth() == schedLwrBound_ : true;
+      bestSched = bestSched_ = lstSched;
+      bestSchedLngth_ = heuristicScheduleLength;
+      bestCost_ = hurstcCost_;
+      if (!IsSecondPass())
+        Logger::Info("Marking SLIL list schedule as optimal due to zero PERP.");
+      else
+        Logger::Info("Marking SLIL list schedule as optimal due to zero PERP and optimal length.");
+    }
+  }
+
   // Step #2: Use ACO to find a schedule if enabled and no optimal schedule is
   // yet to be found.
   // check if region is of appropriate size to execute Dev_ACO on 
@@ -468,23 +491,6 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   dataDepGraph_->PrintLwrBounds(DIR_FRWRD, Logger::GetLogStream(),
                                 "CP Lower Bounds");
 #endif
-
-  // (Chris): If the cost function is SLIL, then the list schedule is considered
-  // optimal if PERP is 0.
-  if (filterByPerp && !isLstOptml && spillCostFunc_ == SCF_SLIL) {
-    const InstCount *regPressures = nullptr;
-    auto regTypeCount = lstSched->GetPeakRegPressures(regPressures);
-    InstCount sumPerp = 0;
-    for (int i = 0; i < regTypeCount; ++i) {
-      int perp = regPressures[i] - machMdl_->GetPhysRegCnt(i);
-      if (perp > 0)
-        sumPerp += perp;
-    }
-    if (sumPerp == 0) {
-      isLstOptml = true;
-      Logger::Info("Marking SLIL list schedule as optimal due to zero PERP.");
-    }
-  }
 
 #if defined(IS_DEBUG_SLIL_OPTIMALITY)
   // (Chris): This code prints a statement when a schedule is SLIL-optimal but

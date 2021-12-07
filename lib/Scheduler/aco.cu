@@ -151,8 +151,10 @@ bool ACOScheduler::shouldReplaceSchedule(InstSchedule *OldSched,
   // if it is the 2nd pass return true if the RP cost and ILP cost is less
 #ifdef __CUDA_ARCH__
   bool isSecondPass = dev_rgn_->IsSecondPass();
+  bool isPERPZero = ((BBWithSpill *)dev_rgn_)->ReturnPeakSpillCost() == 0;
 #else
   bool isSecondPass = rgn_->IsSecondPass(); 
+  bool isPERPZero = ((BBWithSpill *)rgn_)->ReturnPeakSpillCost() == 0;
 #endif
   if (!IsTwoPassEn || !isSecondPass) {
     InstCount NewCost = (!IsTwoPassEn) ? NewSched->GetCost() : NewSched->GetNormSpillCost();
@@ -169,9 +171,10 @@ bool ACOScheduler::shouldReplaceSchedule(InstSchedule *OldSched,
     InstCount NewSpillCost = NewSched->GetNormSpillCost();
     InstCount OldSpillCost = OldSched->GetNormSpillCost();
     // Lower Spill Cost always wins
-    if (NewSpillCost < OldSpillCost)
+
+    if (NewSpillCost < OldSpillCost && !isPERPZero)
       return true;
-    else if (NewSpillCost == OldSpillCost && NewCost < OldCost)
+    else if ((NewSpillCost == OldSpillCost || isPERPZero) && NewCost < OldCost)
       return true;
     else
       return false;
@@ -531,7 +534,8 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   dev_MaxScoringInst[GLOBALTID] = 0;
   lastInst = dataDepGraph_->GetInstByIndx(RootId);
   bool closeToRPTarget = false;
-
+  // if (GLOBALTID==0)
+  //   printf("start sched\n");
   while (!IsSchedComplete_()) {
 
     // there are two steps to scheduling an instruction:
@@ -952,8 +956,12 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
 #endif
         // if a schedule is found with the cost at the lower bound
         // exit the loop after the current iteration is finished
-        if ( dev_bestSched && ( dev_bestSched->GetCost() == 0 || ( IsSecondPass && dev_bestSched->GetExecCost() == 0 ) ) ) {
+        // if ( dev_bestSched && (!IsSecondPass && (dev_bestSched->GetSpillCost() == 0 || ((BBWithSpill *)dev_rgn)->ReturnPeakSpillCost() == 0) || ( IsSecondPass && dev_bestSched->GetExecCost() == 0 ) ) ) {
+        if ( dev_bestSched && (!IsSecondPass && dev_bestSched->GetNormSpillCost() == 0  || ( IsSecondPass && dev_bestSched->GetExecCost() == 0 ) ) ) {
           lowerBoundSchedFound = true;
+        } else if (!IsSecondPass  && ((BBWithSpill *)dev_rgn)->ReturnPeakSpillCost() == 0) {
+          lowerBoundSchedFound = true;
+          printf("Schedule with 0 PERP was found\n");
         }
       } else {
         atomicAdd(&dev_noImprovement, 1);
@@ -1190,7 +1198,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
           // Disable resetting noImp to lock iterations to 10
           noImprovement++;
 #endif
-        if (bestSchedule && ( bestSchedule->GetCost() == 0 || ( !IsFirst && bestSchedule->GetExecCost() == 0 ) ) )
+        if (bestSchedule && ( IsFirst && (bestSchedule->GetCost() == 0 || ((BBWithSpill *)rgn_)->ReturnPeakSpillCost() == 0) || ( !IsFirst && bestSchedule->GetExecCost() == 0 ) ) )
           break;
       } else {
         delete iterationBest;
