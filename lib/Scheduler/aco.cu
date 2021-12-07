@@ -149,12 +149,16 @@ bool ACOScheduler::shouldReplaceSchedule(InstSchedule *OldSched,
 
   // if it is the 1st pass return the cost comparison
   // if it is the 2nd pass return true if the RP cost and ILP cost is less
+  bool isPERPZero;
+  bool needsSLIL = ((BBWithSpill *)dev_rgn_)->needsSLIL();
 #ifdef __CUDA_ARCH__
   bool isSecondPass = dev_rgn_->IsSecondPass();
-  bool isPERPZero = ((BBWithSpill *)dev_rgn_)->ReturnPeakSpillCost() == 0;
+  if (needsSLIL)
+    isPERPZero = ((BBWithSpill *)dev_rgn_)->ReturnPeakSpillCost() == 0;
 #else
-  bool isSecondPass = rgn_->IsSecondPass(); 
-  bool isPERPZero = ((BBWithSpill *)rgn_)->ReturnPeakSpillCost() == 0;
+  bool isSecondPass = rgn_->IsSecondPass();
+  if (needsSLIL)
+    isPERPZero = ((BBWithSpill *)rgn_)->ReturnPeakSpillCost() == 0;
 #endif
   if (!IsTwoPassEn || !isSecondPass) {
     InstCount NewCost = (!IsTwoPassEn) ? NewSched->GetCost() : NewSched->GetNormSpillCost();
@@ -170,9 +174,18 @@ bool ACOScheduler::shouldReplaceSchedule(InstSchedule *OldSched,
     InstCount OldCost = OldSched->GetExecCost();
     InstCount NewSpillCost = NewSched->GetNormSpillCost();
     InstCount OldSpillCost = OldSched->GetNormSpillCost();
-    // Lower Spill Cost always wins
-
-    if (NewSpillCost < OldSpillCost && !isPERPZero)
+    // if SLIL is needed and the new schedule is 0 PERP,
+    // take the shorter schedule length
+    if (needsSLIL && isPERPZero && NewCost <= OldCost) {
+      if (NewSpillCost < OldSpillCost)
+        printf("Shorter schedule found with 0 PERP. New RP: %d, Old RP: %d", NewSpillCost, OldSpillCost);
+      else {
+        printf("Shorter schedule found with 0 PERP. Old was better. New RP: %d, Old RP: %d", NewSpillCost, OldSpillCost);
+      }
+      return true;
+    }
+    // Otherwise, Lower Spill Cost always wins
+    else if (NewSpillCost < OldSpillCost && !isPERPZero)
       return true;
     else if ((NewSpillCost == OldSpillCost || isPERPZero) && NewCost < OldCost)
       return true;

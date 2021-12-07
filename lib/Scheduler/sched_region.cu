@@ -388,7 +388,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
       bestCost_ = hurstcCost_;
       if (!IsSecondPass())
         Logger::Info("Marking SLIL list schedule as optimal due to zero PERP.");
-      else
+      else if(isLstOptml)
         Logger::Info("Marking SLIL list schedule as optimal due to zero PERP and optimal length.");
     }
   }
