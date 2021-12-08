@@ -938,10 +938,6 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
           dev_AcoSchdulr->shouldReplaceSchedule(dev_bestSched, 
                                                 dev_schedules[globalBestIndex], 
                                                 true)) {
-        dev_bestSched->Copy(dev_schedules[globalBestIndex]);
-        // update RPTarget if we are in second pass and not using SLIL
-        if (!needsSLIL)
-          RPTarget = dev_bestSched->GetSpillCost();
         bool isPERPZero = ((BBWithSpill *)dev_rgn)->ReturnPeakSpillCost() == 0;
         InstCount NewCost = dev_schedules[globalBestIndex]->GetExecCost();
         InstCount OldCost = dev_bestSched->GetExecCost();
@@ -954,6 +950,10 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
             printf("Shorter schedule found with 0 PERP. Old was better. New RP: %d, Old RP: %d\n", NewSpillCost, OldSpillCost);
           }
         }
+        dev_bestSched->Copy(dev_schedules[globalBestIndex]);
+        // update RPTarget if we are in second pass and not using SLIL
+        if (!needsSLIL)
+          RPTarget = dev_bestSched->GetSpillCost();
         InstCount globalStalls = 1 > dev_bestSched->getTotalStalls() ? 1 : dev_bestSched->getTotalStalls();
         dev_AcoSchdulr->SetGlobalBestStalls(globalStalls);
         printf("New best sched found by thread %d\n", globalBestIndex);
