@@ -176,12 +176,7 @@ bool ACOScheduler::shouldReplaceSchedule(InstSchedule *OldSched,
     InstCount OldSpillCost = OldSched->GetNormSpillCost();
     // if SLIL is needed and the new schedule is 0 PERP,
     // take the shorter schedule length
-    if (needsSLIL && isPERPZero && NewCost <= OldCost) {
-      if (NewSpillCost < OldSpillCost)
-        printf("Shorter schedule found with 0 PERP. New RP: %d, Old RP: %d", NewSpillCost, OldSpillCost);
-      else {
-        printf("Shorter schedule found with 0 PERP. Old was better. New RP: %d, Old RP: %d", NewSpillCost, OldSpillCost);
-      }
+    if (needsSLIL && isPERPZero && NewCost < OldCost) {
       return true;
     }
     // Otherwise, Lower Spill Cost always wins
@@ -947,6 +942,18 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
         // update RPTarget if we are in second pass and not using SLIL
         if (!needsSLIL)
           RPTarget = dev_bestSched->GetSpillCost();
+        bool isPERPZero = ((BBWithSpill *)dev_rgn)->ReturnPeakSpillCost() == 0;
+        InstCount NewCost = dev_schedules[globalBestIndex]->GetExecCost();
+        InstCount OldCost = dev_bestSched->GetExecCost();
+        InstCount NewSpillCost = dev_schedules[globalBestIndex]->GetNormSpillCost();
+        InstCount OldSpillCost = dev_bestSched->GetNormSpillCost();
+        if (needsSLIL && isPERPZero && NewCost <= OldCost) {
+          if (NewSpillCost < OldSpillCost)
+            printf("Shorter schedule found with 0 PERP. New RP: %d, Old RP: %d\n", NewSpillCost, OldSpillCost);
+          else if ( NewSpillCost > OldSpillCost) {
+            printf("Shorter schedule found with 0 PERP. Old was better. New RP: %d, Old RP: %d\n", NewSpillCost, OldSpillCost);
+          }
+        }
         InstCount globalStalls = 1 > dev_bestSched->getTotalStalls() ? 1 : dev_bestSched->getTotalStalls();
         dev_AcoSchdulr->SetGlobalBestStalls(globalStalls);
         printf("New best sched found by thread %d\n", globalBestIndex);
