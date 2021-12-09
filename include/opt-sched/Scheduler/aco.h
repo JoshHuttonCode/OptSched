@@ -90,6 +90,8 @@ public:
   InstCount GetNumAntsTerminated() { return numAntsTerminated_; }
   __host__ __device__
   void SetGlobalBestStalls(int stalls) { globalBestStalls_ = stalls; }
+  __host__ __device__
+  void SetScRelMax(pheromone_t inScRelMax) { ScRelMax = inScRelMax; }
 
 private:
   __host__ __device__

@@ -845,9 +845,9 @@ void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex, ACOSch
 // Update pheromones with all schedules
 #define ALL 2
 // select which pheromone update scheme to use
-#define PHER_UPDATE_SCHEME ONE_PER_ITER
+#define PHER_UPDATE_SCHEME ALL
 
-__device__ int globalBestIndex, dev_noImprovement;
+__device__ int globalBestIndex, dev_noImprovement, dev_schedsUsed, dev_schedsFound;
 __device__ bool lowerBoundSchedFound;
 
 __global__
@@ -869,6 +869,8 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
   auto threadGroup = cg::this_grid();
   // Get RPTarget
   InstCount RPTarget;
+  dev_schedsUsed = 0;
+  dev_schedsFound = 0;
 
   // If in second pass and not using SLIL, set RPTarget
   if (!needsSLIL)
@@ -902,35 +904,6 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
         dev_schedules[blockBestIndex[0]]->GetCost() != INVALID_VALUE)
       globalBestIndex = blockBestIndex[0];
 
-    // perform pheremone update based on selected scheme
-#if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
-    // Another hard sync point after iteration best selection
-    threadGroup.sync();
-    if (globalBestIndex != INVALID_VALUE) 
-      dev_AcoSchdulr->UpdatePheromone(dev_schedules[globalBestIndex]);
-#elif (PHER_UPDATE_SCHEME == ONE_PER_BLOCK)
-    // each block finds its blockIterationBest
-    if (threadIdx.x == 0) {
-      bestCost = dev_schedules[GLOBALTID]->GetCost();
-      bestIndex = GLOBALTID; 
-      for (int i = GLOBALTID + 1; i < GLOBALTID + NUMTHREADSPERBLOCK; i++) {
-        if (dev_schedules[i]->GetCost() < bestCost) {
-          bestCost = dev_schedules[i]->GetCost();
-          bestIndex = i; 
-        }
-      }   
-    }
-    // wait for thread 0 of each block to find blockIterationBest
-    threadGroup.sync();
-    dev_AcoSchdulr->UpdatePheromone(dev_schedules[bestIndex]);
-#elif (PHER_UPDATE_SCHEME == ALL)
-    // each block loops over all schedules created by its threads and
-    // updates pheromones in block level parallel
-    for (int i = blockIdx.x * NUMTHREADSPERBLOCK; 
-         i < ((blockIdx.x + 1) * NUMTHREADSPERBLOCK); i++) {
-      dev_AcoSchdulr->UpdatePheromone(dev_schedules[i]);
-    }
-#endif
     // 1 thread compares iteration best to overall bestsched
     if (GLOBALTID == 0) {
       // Compare to initialSched/current best
@@ -951,6 +924,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
           }
         }
         dev_bestSched->Copy(dev_schedules[globalBestIndex]);
+        dev_AcoSchdulr->SetScRelMax(dev_bestSched->GetCost());
         // update RPTarget if we are in second pass and not using SLIL
         if (!needsSLIL)
           RPTarget = dev_bestSched->GetSpillCost();
@@ -989,6 +963,46 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
           break;
       }
     }
+        // perform pheremone update based on selected scheme
+#if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
+    // Another hard sync point after iteration best selection
+    threadGroup.sync();
+    if (globalBestIndex != INVALID_VALUE) 
+      dev_AcoSchdulr->UpdatePheromone(dev_schedules[globalBestIndex]);
+#elif (PHER_UPDATE_SCHEME == ONE_PER_BLOCK)
+    // each block finds its blockIterationBest
+    if (threadIdx.x == 0) {
+      bestCost = dev_schedules[GLOBALTID]->GetCost();
+      bestIndex = GLOBALTID; 
+      for (int i = GLOBALTID + 1; i < GLOBALTID + NUMTHREADSPERBLOCK; i++) {
+        if (dev_schedules[i]->GetCost() < bestCost) {
+          bestCost = dev_schedules[i]->GetCost();
+          bestIndex = i; 
+        }
+      }   
+    }
+    // wait for thread 0 of each block to find blockIterationBest
+    threadGroup.sync();
+    dev_AcoSchdulr->UpdatePheromone(dev_schedules[bestIndex]);
+#elif (PHER_UPDATE_SCHEME == ALL)
+    // each block loops over all schedules created by its threads and
+    // updates pheromones in block level parallel
+    for (int i = blockIdx.x * NUMTHREADSPERBLOCK; 
+         i < ((blockIdx.x + 1) * NUMTHREADSPERBLOCK); i++) {
+      // if sched is within 10% of rp cost and sched length, use it to update pheromone table
+      // if (GLOBALTID==0)
+      //   printf("test RP: %d, best RP: %d, test length: %d, best length: %d, ", dev_schedules[i]->GetNormSpillCost(), dev_bestSched->GetNormSpillCost(), dev_schedules[i]->GetExecCost(), dev_bestSched->GetExecCost());
+      if (dev_schedules[i]->GetNormSpillCost() <= dev_bestSched->GetNormSpillCost() && 
+         (!IsSecondPass || dev_schedules[i]->GetExecCost() <= dev_bestSched->GetExecCost())) {
+        dev_AcoSchdulr->UpdatePheromone(dev_schedules[i]);
+        atomicAdd(&dev_schedsUsed, 1);
+      }
+      else {
+        dev_AcoSchdulr->UpdatePheromone(dev_schedules[i]);
+        atomicAdd(&dev_schedsFound, 1);
+      }
+    }
+#endif
     // wait for other blocks to finish before starting next iteration
     threadGroup.sync();
     // make sure no threads reset schedule before above operations complete
@@ -996,9 +1010,11 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     dev_schedules[GLOBALTID]->resetUnnecessaryStalls();
     if (threadIdx.x == 0)
       dev_iterations++;
+    if (GLOBALTID == 0)
+      printf("Iterations: %d\n", dev_iterations);
   }
   if (GLOBALTID == 0) {
-    printf("ACO finished after %d iterations\n", dev_iterations);
+    printf("ACO finished after %d iterations, scheds used: %d, scheds not used: %d, \n", dev_iterations, dev_schedsUsed, dev_schedsFound);
     printf("%d ants terminated early\n", dev_AcoSchdulr->GetNumAntsTerminated());
   }
 }
@@ -1290,7 +1306,7 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule) {
     instNum += NUMTHREADSPERBLOCK;
 #endif
   }
-  if (print_aco_trace)
+  if (print_aco_trace && GLOBALTID==0)
     PrintPheromone();
 
 #else // host version of function
@@ -1422,11 +1438,12 @@ inline void ACOScheduler::UpdtRdyLst_(InstCount cycleNum, int slotNum) {
 
 __host__ __device__
 void ACOScheduler::PrintPheromone() {
+  printf("Pher: ");
   for (int i = 0; i < count_; i++) {
     for (int j = 0; j < count_; j++) {
       //std::cerr << std::scientific << std::setprecision(8) << Pheromone(i, j)
       //          << " ";
-      printf("%.10e ", Pheromone(i, j));
+      printf("%.3e ", Pheromone(i, j));
     }
     //std::cerr << std::endl;
     printf("\n");
