@@ -149,17 +149,11 @@ bool ACOScheduler::shouldReplaceSchedule(InstSchedule *OldSched,
 
   // if it is the 1st pass return the cost comparison
   // if it is the 2nd pass return true if the RP cost and ILP cost is less
-  bool isPERPZero;
-  bool needsSLIL = ((BBWithSpill *)dev_rgn_)->needsSLIL();
-#ifdef __CUDA_ARCH__
-  bool isSecondPass = dev_rgn_->IsSecondPass();
-  if (needsSLIL)
-    isPERPZero = ((BBWithSpill *)dev_rgn_)->ReturnPeakSpillCost() == 0;
-#else
-  bool isSecondPass = rgn_->IsSecondPass();
-  if (needsSLIL)
-    isPERPZero = ((BBWithSpill *)rgn_)->ReturnPeakSpillCost() == 0;
-#endif
+  #ifdef __CUDA_ARCH__
+    bool isSecondPass = dev_rgn_->IsSecondPass();
+  #else
+    bool isSecondPass = rgn_->IsSecondPass();
+  #endif
   if (!IsTwoPassEn || !isSecondPass) {
     InstCount NewCost = (!IsTwoPassEn) ? NewSched->GetCost() : NewSched->GetNormSpillCost();
     InstCount OldCost = (!IsTwoPassEn) ? OldSched->GetCost() : OldSched->GetNormSpillCost();
@@ -170,19 +164,32 @@ bool ACOScheduler::shouldReplaceSchedule(InstSchedule *OldSched,
       return false;
   }
   else {
+    #ifdef __CUDA_ARCH__
+      bool needsSLIL = ((BBWithSpill *)dev_rgn_)->needsSLIL();
+    #else
+      bool needsSLIL = ((BBWithSpill *)rgn_)->needsSLIL();
+    #endif
     InstCount NewCost = NewSched->GetExecCost();
     InstCount OldCost = OldSched->GetExecCost();
     InstCount NewSpillCost = NewSched->GetNormSpillCost();
     InstCount OldSpillCost = OldSched->GetNormSpillCost();
-    // if SLIL is needed and the new schedule is 0 PERP,
-    // take the shorter schedule length
-    if (needsSLIL && isPERPZero && NewCost < OldCost) {
+    // if using SLIL and old schedule is 0 PERP, new schedule wins if it
+    // is 0 PERP and shorter
+    if (needsSLIL && OldSched->getIsZeroPerp()) {
+      if (NewSched->getIsZeroPerp() && NewCost < OldCost)
+        return true;
+      else
+        return false;
+    }
+    // if old schedule is not 0 PERP and new schedule is 0 PERP, 
+    // it wins regardless of schedule length
+    else if (needsSLIL && NewSched->getIsZeroPerp()) {
       return true;
     }
     // Otherwise, Lower Spill Cost always wins
-    else if (NewSpillCost < OldSpillCost && !isPERPZero)
+    else if (NewSpillCost < OldSpillCost)
       return true;
-    else if ((NewSpillCost == OldSpillCost || isPERPZero) && NewCost < OldCost)
+    else if ((NewSpillCost == OldSpillCost) && NewCost < OldCost)
       return true;
     else
       return false;
@@ -636,6 +643,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       InitNewCycle_();
   }
   dev_rgn_->UpdateScheduleCost(schedule);
+  schedule->setIsZeroPerp( ((BBWithSpill *)dev_rgn_)->ReturnPeakSpillCost() == 0 );
   return schedule;
 
 #else  // **** Host version of function ****
@@ -755,6 +763,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       InitNewCycle_();
   }
   rgn_->UpdateScheduleCost(schedule);
+  schedule->setIsZeroPerp( ((BBWithSpill *)rgn_)->ReturnPeakSpillCost() == 0 );
   return schedule;
 #endif
 }
@@ -845,7 +854,7 @@ void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex, ACOSch
 // Update pheromones with all schedules
 #define ALL 2
 // select which pheromone update scheme to use
-#define PHER_UPDATE_SCHEME ALL
+#define PHER_UPDATE_SCHEME ONE_PER_ITER
 
 __device__ int globalBestIndex, dev_noImprovement, dev_schedsUsed, dev_schedsFound;
 __device__ bool lowerBoundSchedFound;
@@ -911,12 +920,11 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
           dev_AcoSchdulr->shouldReplaceSchedule(dev_bestSched, 
                                                 dev_schedules[globalBestIndex], 
                                                 true)) {
-        bool isPERPZero = ((BBWithSpill *)dev_rgn)->ReturnPeakSpillCost() == 0;
         InstCount NewCost = dev_schedules[globalBestIndex]->GetExecCost();
         InstCount OldCost = dev_bestSched->GetExecCost();
         InstCount NewSpillCost = dev_schedules[globalBestIndex]->GetNormSpillCost();
         InstCount OldSpillCost = dev_bestSched->GetNormSpillCost();
-        if (needsSLIL && isPERPZero && NewCost <= OldCost) {
+        if (needsSLIL && dev_bestSched->getIsZeroPerp() && NewCost < OldCost) {
           if (NewSpillCost < OldSpillCost)
             printf("Shorter schedule found with 0 PERP. New RP: %d, Old RP: %d\n", NewSpillCost, OldSpillCost);
           else if ( NewSpillCost > OldSpillCost) {
