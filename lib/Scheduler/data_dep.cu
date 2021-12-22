@@ -2748,6 +2748,7 @@ InstSchedule::InstSchedule(MachineModel *machMdl, DataDepGraph *dataDepGraph,
   spillCnddtCnt_ = 0;
   totalStalls_ = 0;
   unnecessaryStalls_ = 0;
+  isZeroPerp_ = false;
 }
 
 InstSchedule::InstSchedule() {
@@ -2763,6 +2764,7 @@ InstSchedule::InstSchedule() {
   spillCnddtCnt_ = 0;
   totalStalls_ = 0;
   unnecessaryStalls_ = 0;
+  isZeroPerp_ = false;
 }
 
 InstSchedule::~InstSchedule() {
@@ -2939,6 +2941,7 @@ void InstSchedule::Reset() {
   crntSlotNum_ = 0;
   maxSchduldInstCnt_ = 0;
   maxInstNumSchduld_ = -1;
+  isZeroPerp_ = false;
   cost_ = INVALID_VALUE;
 }
 
@@ -2968,6 +2971,7 @@ void InstSchedule::Copy(InstSchedule *src) {
   spillCost_ = src->spillCost_;
   totalStalls_ = src->totalStalls_;
   unnecessaryStalls_ = src->unnecessaryStalls_;
+  isZeroPerp_ = src->isZeroPerp_;
 }
 
 __host__ __device__

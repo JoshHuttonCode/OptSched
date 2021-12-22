@@ -737,7 +737,7 @@ private:
   bool vrfy_;
 
   int totalStalls_, unnecessaryStalls_;
-  bool isZeroPerp_ = false;
+  bool isZeroPerp_;
 
   bool VerifySlots_(MachineModel *machMdl, DataDepGraph *dataDepGraph);
   bool VerifyDataDeps_(DataDepGraph *dataDepGraph);

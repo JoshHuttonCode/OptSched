@@ -682,8 +682,6 @@ void BBWithSpill::UpdateSpillInfoForSchdul_(SchedInstruction *inst,
     perpValueForSlil = Dev_CmputCostForFunction(SCF_PERP);
     if (dev_peakSpillCost_[GLOBALTID] < perpValueForSlil)
       dev_peakSpillCost_[GLOBALTID] = perpValueForSlil;
-    // if (GLOBALTID==0)
-    //   printf("current ERP: %d, PERP: %d\n", perpValueForSlil, dev_peakSpillCost_[GLOBALTID]);
   }
   else
     newSpillCost = Dev_CmputCostForFunction(GetSpillCostFunc());
@@ -837,7 +835,7 @@ void BBWithSpill::UpdateSpillInfoForSchdul_(SchedInstruction *inst,
     perpValueForSlil = CmputCostForFunction(SCF_PERP);
     if (peakSpillCost_ < perpValueForSlil)
       peakSpillCost_ = perpValueForSlil;
-  } 
+  }
   else
     newSpillCost = CmputCostForFunction(GetSpillCostFunc());
 

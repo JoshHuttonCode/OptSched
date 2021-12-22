@@ -178,10 +178,12 @@ bool ACOScheduler::shouldReplaceSchedule(InstSchedule *OldSched,
     if (needsSLIL && OldSched->getIsZeroPerp()) {
       if (NewSched->getIsZeroPerp() && NewCost < OldCost)
         return true;
+      else if (NewSched->getIsZeroPerp() && NewCost == OldCost && NewSpillCost < OldSpillCost)
+        return true;
       else
         return false;
     }
-    // if old schedule is not 0 PERP and new schedule is 0 PERP, 
+    // if old schedule is not 0 PERP and new schedule is 0 PERP,
     // it wins regardless of schedule length
     else if (needsSLIL && NewSched->getIsZeroPerp()) {
       return true;
@@ -549,8 +551,6 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   dev_MaxScoringInst[GLOBALTID] = 0;
   lastInst = dataDepGraph_->GetInstByIndx(RootId);
   bool closeToRPTarget = false;
-  // if (GLOBALTID==0)
-  //   printf("start sched\n");
   while (!IsSchedComplete_()) {
 
     // there are two steps to scheduling an instruction:
@@ -958,7 +958,6 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
 #endif
         // if a schedule is found with the cost at the lower bound
         // exit the loop after the current iteration is finished
-        // if ( dev_bestSched && (!IsSecondPass && (dev_bestSched->GetSpillCost() == 0 || ((BBWithSpill *)dev_rgn)->ReturnPeakSpillCost() == 0) || ( IsSecondPass && dev_bestSched->GetExecCost() == 0 ) ) ) {
         if ( dev_bestSched && (!IsSecondPass && dev_bestSched->GetNormSpillCost() == 0  || ( IsSecondPass && dev_bestSched->GetExecCost() == 0 ) ) ) {
           lowerBoundSchedFound = true;
         } else if (!IsSecondPass  && ((BBWithSpill *)dev_rgn)->ReturnPeakSpillCost() == 0) {
@@ -975,19 +974,19 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
 #if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
     // Another hard sync point after iteration best selection
     threadGroup.sync();
-    if (globalBestIndex != INVALID_VALUE) 
+    if (globalBestIndex != INVALID_VALUE)
       dev_AcoSchdulr->UpdatePheromone(dev_schedules[globalBestIndex]);
 #elif (PHER_UPDATE_SCHEME == ONE_PER_BLOCK)
     // each block finds its blockIterationBest
     if (threadIdx.x == 0) {
       bestCost = dev_schedules[GLOBALTID]->GetCost();
-      bestIndex = GLOBALTID; 
+      bestIndex = GLOBALTID;
       for (int i = GLOBALTID + 1; i < GLOBALTID + NUMTHREADSPERBLOCK; i++) {
         if (dev_schedules[i]->GetCost() < bestCost) {
           bestCost = dev_schedules[i]->GetCost();
-          bestIndex = i; 
+          bestIndex = i;
         }
-      }   
+      }
     }
     // wait for thread 0 of each block to find blockIterationBest
     threadGroup.sync();
@@ -995,12 +994,12 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
 #elif (PHER_UPDATE_SCHEME == ALL)
     // each block loops over all schedules created by its threads and
     // updates pheromones in block level parallel
-    for (int i = blockIdx.x * NUMTHREADSPERBLOCK; 
+    for (int i = blockIdx.x * NUMTHREADSPERBLOCK;
          i < ((blockIdx.x + 1) * NUMTHREADSPERBLOCK); i++) {
       // if sched is within 10% of rp cost and sched length, use it to update pheromone table
       // if (GLOBALTID==0)
       //   printf("test RP: %d, best RP: %d, test length: %d, best length: %d, ", dev_schedules[i]->GetNormSpillCost(), dev_bestSched->GetNormSpillCost(), dev_schedules[i]->GetExecCost(), dev_bestSched->GetExecCost());
-      if (dev_schedules[i]->GetNormSpillCost() <= dev_bestSched->GetNormSpillCost() && 
+      if (dev_schedules[i]->GetNormSpillCost() <= dev_bestSched->GetNormSpillCost() &&
          (!IsSecondPass || dev_schedules[i]->GetExecCost() <= dev_bestSched->GetExecCost())) {
         dev_AcoSchdulr->UpdatePheromone(dev_schedules[i]);
         atomicAdd(&dev_schedsUsed, 1);
@@ -1018,8 +1017,6 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     dev_schedules[GLOBALTID]->resetUnnecessaryStalls();
     if (threadIdx.x == 0)
       dev_iterations++;
-    if (GLOBALTID == 0)
-      printf("Iterations: %d\n", dev_iterations);
   }
   if (GLOBALTID == 0) {
     printf("ACO finished after %d iterations, scheds used: %d, scheds not used: %d, \n", dev_iterations, dev_schedsUsed, dev_schedsFound);
