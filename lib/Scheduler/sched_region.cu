@@ -215,6 +215,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   bool HeuristicSchedulerEnabled = schedIni.GetBool("HEUR_ENABLED");
   bool AcoSchedulerEnabled = schedIni.GetBool("ACO_ENABLED");
   bool BbSchedulerEnabled = isBbEnabled(schedIni, rgnTimeout);
+  unsigned long randSeed = (unsigned long) schedIni.GetInt("RANDOM_SEED");
 
   if (AcoSchedulerEnabled) {
     AcoBeforeEnum = schedIni.GetBool("ACO_BEFORE_ENUM");
@@ -411,7 +412,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     AcoStart = Utilities::GetProcessorTime();
     AcoSchedule = new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
 
-    rslt = runACO(AcoSchedule, lstSched, false);
+    rslt = runACO(AcoSchedule, lstSched, false, randSeed);
     if (rslt != RES_SUCCESS) {
       Logger::Fatal("ACO scheduling failed");
       if (lstSchdulr)
@@ -592,7 +593,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     InstSchedule *AcoAfterEnumSchedule =
         new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
 
-    FUNC_RESULT acoRslt = runACO(AcoAfterEnumSchedule, bestSched, true);
+    FUNC_RESULT acoRslt = runACO(AcoAfterEnumSchedule, bestSched, true, randSeed);
     if (acoRslt != RES_SUCCESS) {
       Logger::Info("Running final ACO failed");
       delete AcoAfterEnumSchedule;
@@ -971,7 +972,8 @@ void InitCurand(curandState_t *dev_states, unsigned long seed, int instCnt) {
 }
 
 FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
-                                InstSchedule *InitSched, bool IsPostBB) {
+                                InstSchedule *InitSched, bool IsPostBB,
+                                unsigned long randSeed) {
   InitForSchdulng();
   FUNC_RESULT Rslt;
   // Num of edges are used to filter out the few regions that are too large
@@ -1013,8 +1015,8 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     memSize = sizeof(curandState_t) * NUMTHREADS;
     gpuErrchk(cudaMalloc(&dev_states, memSize));
     InitCurand<<<NUMBLOCKS, NUMTHREADSPERBLOCK>>>(dev_states, 
-                                                  unsigned(time(NULL)),
-                                                  dataDepGraph_->GetInstCnt());                                       
+                                                  randSeed == 0 ? unsigned(time(NULL)) : randSeed,
+                                                  dataDepGraph_->GetInstCnt());
     ACOScheduler *AcoSchdulr = new ACOScheduler(
         dataDepGraph_, machMdl_, abslutSchedUprBound_, enumPrirts_,
         vrfySched_, IsPostBB, (SchedRegion *)dev_rgn, dev_DDG,

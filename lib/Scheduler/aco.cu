@@ -932,7 +932,6 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
           }
         }
         dev_bestSched->Copy(dev_schedules[globalBestIndex]);
-        dev_AcoSchdulr->SetScRelMax(dev_bestSched->GetCost());
         // update RPTarget if we are in second pass and not using SLIL
         if (!needsSLIL)
           RPTarget = dev_bestSched->GetSpillCost();
@@ -1040,8 +1039,18 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
   decay_factor = schedIni.GetInt(IsFirst ? "ACO_DECAY_FACTOR" : "ACO2P_DECAY_FACTOR");
   if (dev_AcoSchdulr)
     dev_AcoSchdulr->fixed_bias = fixed_bias;
-  noImprovementMax = schedIni.GetInt(IsFirst ? "ACO_STOP_ITERATIONS"
-                                             : "ACO2P_STOP_ITERATIONS");
+  if (count_ < 50)
+    noImprovementMax = schedIni.GetInt(IsFirst ? "ACO_STOP_ITERATIONS_RANGE1"
+                                             : "ACO2P_STOP_ITERATIONS_RANGE1");
+  else if (count_ < 100) 
+    noImprovementMax = schedIni.GetInt(IsFirst ? "ACO_STOP_ITERATIONS_RANGE2"
+                                             : "ACO2P_STOP_ITERATIONS_RANGE2");
+  else if (count_ < 1000)
+    noImprovementMax = schedIni.GetInt(IsFirst ? "ACO_STOP_ITERATIONS_RANGE3"
+                                             : "ACO2P_STOP_ITERATIONS_RANGE3");
+  else 
+    noImprovementMax = schedIni.GetInt(IsFirst ? "ACO_STOP_ITERATIONS_RANGE4"
+                                             : "ACO2P_STOP_ITERATIONS_RANGE4");
   if (dev_AcoSchdulr)
     dev_AcoSchdulr->noImprovementMax = noImprovementMax;
 
