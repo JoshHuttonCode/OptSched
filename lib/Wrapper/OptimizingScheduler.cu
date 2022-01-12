@@ -32,6 +32,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "opt-sched/Scheduler/dev_defines.h"
+#include "opt-sched/Scheduler/aco.h"
 #include <algorithm>
 #include <chrono>
 #include <string>
@@ -418,7 +419,7 @@ void ScheduleDAGOptSched::schedule() {
   addGraphTransformations(BDDG);
 
   // Prepare for device scheduling by increasing heap size and copying machMdl
-  if (DEV_ACO && dev_MM == NULL) {
+  if (DEV_ACO && dev_MM == NULL && NumRegionInstrs >= REGION_MIN_SIZE) {
     // Copy MachineModel to device for use during DevListSched.
     // Allocate device memory
     gpuErrchk(cudaMallocManaged((void**)&dev_MM, sizeof(MachineModel)));

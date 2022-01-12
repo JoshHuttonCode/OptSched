@@ -979,7 +979,7 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
   // Num of edges are used to filter out the few regions that are too large
   // to fit in device memory
   Logger::Info("This DDG has %d edges", dataDepGraph_->GetEdgeCnt());
-  if (DEV_ACO) {
+  if (DEV_ACO && dataDepGraph_->GetInstCnt() >= REGION_MIN_SIZE) {
     // Allocate and Copy data to device for parallel ACO
     size_t memSize;
     // Allocate arrays for parallel ACO execution

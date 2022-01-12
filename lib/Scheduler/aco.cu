@@ -1100,7 +1100,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
   InstSchedule *iterationBest = nullptr;
   SetGlobalBestStalls(std::max(1, bestSchedule->GetCrntLngth() - dataDepGraph_->GetInstCnt()));
   
-  if (DEV_ACO) { // Run ACO on device
+  if (DEV_ACO && count_ >= REGION_MIN_SIZE) { // Run ACO on device
     size_t memSize;
     // Update pheromones on device
     CopyPheromonesToDevice(dev_AcoSchdulr);
@@ -1268,7 +1268,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
   schedule_out->Copy(bestSchedule);
   if (bestSchedule != InitialSchedule)
     delete bestSchedule;
-  if (!DEV_ACO)
+  if (!DEV_ACO || count_ < REGION_MIN_SIZE)
     printf("ACO finished after %d iterations\n", iterations);
 
   return RES_SUCCESS;

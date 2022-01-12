@@ -12,6 +12,7 @@
 #include "opt-sched/Scheduler/relaxed_sched.h"
 #include "opt-sched/Scheduler/stats.h"
 #include "opt-sched/Scheduler/dev_defines.h"
+#include "opt-sched/Scheduler/aco.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Debug.h"
 #include <cuda_runtime.h>
@@ -970,7 +971,7 @@ void DataDepGraph::CreateEdge(SchedInstruction *frmNode,
 		                    ltncy, depType);
   // If compiling on device, keep track of the pointers to all edges
   // Set instCnt_ comparison to REGION_MIN_SIZE
-  if (DEV_ACO && instCnt_ >= 1) {
+  if (DEV_ACO && instCnt_ >= REGION_MIN_SIZE) {
     // if the edges_ vector has not been created, create it
     if (!edges_)
       edges_ = new std::vector<GraphEdge *>();
@@ -1022,7 +1023,7 @@ void DataDepGraph::CreateEdge_(InstCount frmNodeNum, InstCount toNodeNum,
                          IsArtificial);
     // If compiling on device, keep track of the pointers to all edges
     // Set instCnt_ comparison to REGION_MIN_SIZE
-    if (DEV_ACO && instCnt_ >= 1) {
+    if (DEV_ACO && instCnt_ >= REGION_MIN_SIZE) {
       // if the edges_ vector has not been created, create it
       if (!edges_)
         edges_ = new std::vector<GraphEdge *>();
