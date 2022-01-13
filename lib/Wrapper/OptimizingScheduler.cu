@@ -604,7 +604,7 @@ void ScheduleDAGOptSched::loadOptSchedConfig() {
   EnumStalls = schedIni.GetBool("ENUMERATE_STALLS");
   SCW = schedIni.GetInt("SPILL_COST_WEIGHT");
   LowerBoundAlgorithm = parseLowerBoundAlgorithm();
-  HeuristicPriorities = parseHeuristic(schedIni.GetString("HEURISTIC"));
+  HeuristicPriorities = parseHeuristic(schedIni.GetString("LIST_HEURISTIC"));
   EnumPriorities = parseHeuristic(schedIni.GetString("ENUM_HEURISTIC"));
   SecondPassEnumPriorities =
       parseHeuristic(schedIni.GetString("SECOND_PASS_ENUM_HEURISTIC"));
