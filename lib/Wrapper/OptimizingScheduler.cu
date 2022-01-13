@@ -419,7 +419,7 @@ void ScheduleDAGOptSched::schedule() {
   addGraphTransformations(BDDG);
 
   // Prepare for device scheduling by increasing heap size and copying machMdl
-  if (DEV_ACO && dev_MM == NULL && NumRegionInstrs >= REGION_MIN_SIZE) {
+  if (DEV_ACO && dev_MM == NULL && NumRegionInstrs + 2 >= REGION_MIN_SIZE) {
     // Copy MachineModel to device for use during DevListSched.
     // Allocate device memory
     gpuErrchk(cudaMallocManaged((void**)&dev_MM, sizeof(MachineModel)));
