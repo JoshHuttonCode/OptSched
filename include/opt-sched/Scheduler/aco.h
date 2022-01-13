@@ -33,6 +33,7 @@ namespace opt_sched {
 #define NUMBLOCKS 80
 #define NUMTHREADSPERBLOCK 32
 #define NUMTHREADS NUMBLOCKS * NUMTHREADSPERBLOCK
+#define NUMHOSTTHREADS 2560
 
 enum class DCF_OPT {
   OFF,

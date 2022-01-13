@@ -400,7 +400,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   // Defined in aco.h
   // TODO: move to sched.ini
   if (AcoBeforeEnum && 
-      (REGION_MIN_SIZE > 0 && dataDepGraph_->GetInstCnt() < REGION_MIN_SIZE ||
+      (//REGION_MIN_SIZE > 0 && dataDepGraph_->GetInstCnt() < REGION_MIN_SIZE ||
        REGION_MAX_EDGE_CNT > 0 && 
        dataDepGraph_->GetEdgeCnt() > REGION_MAX_EDGE_CNT)) {
     Logger::Info("Skipping ACO (under %d nodes or over %d edges)", 

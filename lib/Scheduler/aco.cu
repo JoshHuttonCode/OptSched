@@ -1200,7 +1200,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     cudaFree(dev_schedules);
 
   } else { // Run ACO on cpu
-    Logger::Info("Running host ACO with %d ants per iteration", NUMTHREADS);
+    Logger::Info("Running host ACO with %d ants per iteration", NUMHOSTTHREADS);
     InstCount RPTarget;
     if (!((BBWithSpill *)rgn_)->needsSLIL())
       RPTarget = bestSchedule->GetSpillCost();
@@ -1208,7 +1208,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
       RPTarget = MaxRPTarget;
     while (noImprovement < noImprovementMax) {
       iterationBest = nullptr;
-      for (int i = 0; i < NUMTHREADS; i++) {
+      for (int i = 0; i < NUMHOSTTHREADS; i++) {
         InstSchedule *schedule = FindOneSchedule(RPTarget);
         if (print_aco_trace)
           PrintSchedule(schedule);
