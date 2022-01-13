@@ -1095,6 +1095,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
   if (bestSchedule) {
     UpdatePheromone(bestSchedule);
   }
+  bestSchedule->setIsZeroPerp(false);
   int noImprovement = 0; // how many iterations with no improvement
   int iterations = 0;
   InstSchedule *iterationBest = nullptr;
@@ -1248,7 +1249,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
           // Disable resetting noImp to lock iterations to 10
           noImprovement++;
 #endif
-        if (bestSchedule && ( IsFirst && (bestSchedule->GetCost() == 0 || ((BBWithSpill *)rgn_)->ReturnPeakSpillCost() == 0) || ( !IsFirst && bestSchedule->GetExecCost() == 0 ) ) )
+        if (bestSchedule && ( IsFirst && (bestSchedule->GetNormSpillCost() == 0 || ((BBWithSpill *)rgn_)->ReturnPeakSpillCost() == 0) || ( !IsFirst && bestSchedule->GetExecCost() == 0 ) ) )
           break;
       } else {
         delete iterationBest;
