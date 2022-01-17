@@ -352,7 +352,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     Logger::Info("Ready List Size is: %d, Percent of total number of instructions: %f", maxIndependentInstructions, double(maxIndependentInstructions)/double(dataDepGraph_->GetInstCnt()));
     // This schedule is optimal so ACO will not be run
     // so set bestSched here.
-    if (hurstcCost_ == 0 || maxIndependentInstructions == 1) {
+    if (hurstcCost_ == 0 || maxIndependentInstructions == 1 || (IsSecondPass() && hurstcExecCost == 0)) {
       isLstOptml = true;
       bestSched = bestSched_ = lstSched;
       bestSchedLngth_ = heuristicScheduleLength;
