@@ -216,6 +216,11 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   bool AcoSchedulerEnabled = schedIni.GetBool("ACO_ENABLED");
   bool BbSchedulerEnabled = isBbEnabled(schedIni, rgnTimeout);
   unsigned long randSeed = (unsigned long) schedIni.GetInt("RANDOM_SEED");
+  int numBlocks;
+  if (DEV_ACO && dataDepGraph_->GetInstCnt() >= REGION_MIN_SIZE)
+    numBlocks = schedIni.GetBool("ACO_MANY_ANTS_ENABLED") && dataDepGraph_->GetInstCnt() > MANY_ANT_MIN_SIZE ? schedIni.GetInt("ACO_MANY_ANTS_PER_ITERATION_BLOCKS") : schedIni.GetInt("ACO_DEVICE_ANT_PER_ITERATION_BLOCKS");
+  else
+    numBlocks = schedIni.GetInt("ACO_HOST_BLOCKS");
 
   if (AcoSchedulerEnabled) {
     AcoBeforeEnum = schedIni.GetBool("ACO_BEFORE_ENUM");
@@ -411,7 +416,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     AcoStart = Utilities::GetProcessorTime();
     AcoSchedule = new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
 
-    rslt = runACO(AcoSchedule, lstSched, false, randSeed);
+    rslt = runACO(AcoSchedule, lstSched, false, randSeed, numBlocks);
     if (rslt != RES_SUCCESS) {
       Logger::Fatal("ACO scheduling failed");
       if (lstSchdulr)
@@ -592,7 +597,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     InstSchedule *AcoAfterEnumSchedule =
         new InstSchedule(machMdl_, dataDepGraph_, vrfySched_);
 
-    FUNC_RESULT acoRslt = runACO(AcoAfterEnumSchedule, bestSched, true, randSeed);
+    FUNC_RESULT acoRslt = runACO(AcoAfterEnumSchedule, bestSched, true, randSeed, numBlocks);
     if (acoRslt != RES_SUCCESS) {
       Logger::Info("Running final ACO failed");
       delete AcoAfterEnumSchedule;
@@ -972,9 +977,10 @@ void InitCurand(curandState_t *dev_states, unsigned long seed, int instCnt) {
 
 FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
                                 InstSchedule *InitSched, bool IsPostBB,
-                                unsigned long randSeed) {
+                                unsigned long randSeed, int numBlocks) {
   InitForSchdulng();
   FUNC_RESULT Rslt;
+  int numThreads = numBlocks * NUMTHREADSPERBLOCK;
   // Num of edges are used to filter out the few regions that are too large
   // to fit in device memory
   Logger::Info("This DDG has %d edges", dataDepGraph_->GetEdgeCnt());
@@ -983,14 +989,14 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     size_t memSize;
     // Allocate arrays for parallel ACO execution
     for (int i = 0; i < dataDepGraph_->GetInstCnt(); i++) {
-      dataDepGraph_->GetInstByIndx(i)->AllocDevArraysForParallelACO(NUMTHREADS);
+      dataDepGraph_->GetInstByIndx(i)->AllocDevArraysForParallelACO(numThreads);
     }
     RegisterFile *regFiles = dataDepGraph_->getRegFiles();
     for (int i = 0; i < dataDepGraph_->GetRegTypeCnt(); i++) {
       for (int j = 0; j < regFiles[i].GetRegCnt(); j++)
-        regFiles[i].GetReg(j)->AllocDevArrayForParallelACO(NUMTHREADS);
+        regFiles[i].GetReg(j)->AllocDevArrayForParallelACO(numThreads);
     }
-    ((BBWithSpill*)this)->AllocDevArraysForParallelACO(NUMTHREADS);
+    ((BBWithSpill*)this)->AllocDevArraysForParallelACO(numThreads);
     // Copy DDG and its objects to device
     Logger::Info("Copying DDG and its Instruction to device");
     DataDepGraph *dev_DDG;
@@ -998,7 +1004,7 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     gpuErrchk(cudaMallocManaged(&dev_DDG, memSize));
     gpuErrchk(cudaMemcpy(dev_DDG, dataDepGraph_, memSize,
                          cudaMemcpyHostToDevice));
-    dataDepGraph_->CopyPointersToDevice(dev_DDG, NUMTHREADS);
+    dataDepGraph_->CopyPointersToDevice(dev_DDG, numThreads);
     Logger::Info("Done Copying DDG and its Instruction to device");
     // Copy this(BBWithSpill) to device
     BBWithSpill *dev_rgn;
@@ -1008,17 +1014,17 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     // Copy this to device
     gpuErrchk(cudaMemcpy(dev_rgn, this, memSize, cudaMemcpyHostToDevice));
     dev_rgn->machMdl_ = dev_machMdl_;
-    CopyPointersToDevice(dev_rgn, NUMTHREADS);
+    CopyPointersToDevice(dev_rgn, numThreads);
     // Allocate dev_states for curand RNG and run curand_init() to initialize
     curandState_t *dev_states;
-    memSize = sizeof(curandState_t) * NUMTHREADS;
+    memSize = sizeof(curandState_t) * numThreads;
     gpuErrchk(cudaMalloc(&dev_states, memSize));
-    InitCurand<<<NUMBLOCKS, NUMTHREADSPERBLOCK>>>(dev_states, 
+    InitCurand<<<numBlocks, NUMTHREADSPERBLOCK>>>(dev_states,
                                                   randSeed == 0 ? unsigned(time(NULL)) : randSeed,
                                                   dataDepGraph_->GetInstCnt());
     ACOScheduler *AcoSchdulr = new ACOScheduler(
         dataDepGraph_, machMdl_, abslutSchedUprBound_, enumPrirts_,
-        vrfySched_, IsPostBB, (SchedRegion *)dev_rgn, dev_DDG,
+        vrfySched_, IsPostBB, numBlocks, (SchedRegion *)dev_rgn, dev_DDG,
         dev_machMdl_, dev_states);
     AcoSchdulr->setInitialSched(InitSched);
     // Alloc dev arrays for parallel ACO
@@ -1042,9 +1048,9 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     dev_AcoSchdulr->FreeDevicePointers();
     cudaFree(dev_AcoSchdulr);
     delete AcoSchdulr;
-    dev_rgn->FreeDevicePointers(NUMTHREADS);
+    dev_rgn->FreeDevicePointers(numThreads);
     cudaFree(dev_rgn);
-    dev_DDG->FreeDevicePointers(NUMTHREADS);
+    dev_DDG->FreeDevicePointers(numThreads);
     cudaFree(dev_DDG);
     cudaFree(dev_states);
     // For some reason crashed OptSched to have this in the destructor
@@ -1058,7 +1064,7 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
   } else {
     ACOScheduler *AcoSchdulr = 
         new ACOScheduler(dataDepGraph_, machMdl_, abslutSchedUprBound_,
-                         enumPrirts_, vrfySched_, IsPostBB);
+                         enumPrirts_, vrfySched_, IsPostBB, numBlocks);
     AcoSchdulr->setInitialSched(InitSched);
     Rslt = AcoSchdulr->FindSchedule(ReturnSched, this);
     delete AcoSchdulr;

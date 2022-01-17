@@ -26,14 +26,13 @@ namespace opt_sched {
 // setting to 1 locks ACO to iterations_without_improvement iterations
 #define RUNTIME_TESTING 0
 // Minimum region node count. Doesn't make sence to launch DEV_ACO on small rgns
-#define REGION_MIN_SIZE 50
+#define REGION_MIN_SIZE 10
+#define MANY_ANT_MIN_SIZE 100
 // use edge count to approximate memory usage, using nodeCnt reflect
 // memory usage as well. Smaller node count DAGs can use more memory.
 #define REGION_MAX_EDGE_CNT 800000
-#define NUMBLOCKS 80
+#define NUMBLOCKSMANYANTS 160
 #define NUMTHREADSPERBLOCK 32
-#define NUMTHREADS NUMBLOCKS * NUMTHREADSPERBLOCK
-#define NUMHOSTTHREADS 2560
 
 enum class DCF_OPT {
   OFF,
@@ -53,7 +52,7 @@ class ACOScheduler : public ConstrainedScheduler {
 public:
   ACOScheduler(DataDepGraph *dataDepGraph, MachineModel *machineModel,
                InstCount upperBound, SchedPriorities priorities,
-               bool vrfySched, bool IsPostBB, SchedRegion *dev_rgn = NULL,
+               bool vrfySched, bool IsPostBB,  int numBlocks, SchedRegion *dev_rgn = NULL,
 	       DataDepGraph *dev_DDG = NULL,
 	       MachineModel *dev_MM = NULL, curandState_t *dev_states = NULL);
   __host__ __device__
@@ -93,6 +92,10 @@ public:
   void SetGlobalBestStalls(int stalls) { globalBestStalls_ = stalls; }
   __host__ __device__
   void SetScRelMax(pheromone_t inScRelMax) { ScRelMax = inScRelMax; }
+  __host__ __device__
+  int GetNumBlocks() { return numBlocks_; }
+  __host__ __device__
+  int GetNumThreads() { return numThreads_; }
 
 private:
   __host__ __device__
@@ -154,6 +157,7 @@ private:
 
   bool justWaited = false;
   int globalBestStalls_ = 0;
+  int numBlocks_, numThreads_;
 
 };
 

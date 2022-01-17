@@ -46,8 +46,8 @@ double RandDouble(double min, double max) {
 ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
                            MachineModel *machineModel, InstCount upperBound,
                            SchedPriorities priorities, bool vrfySched, 
-                           bool IsPostBB, SchedRegion *dev_rgn,
-                           DataDepGraph *dev_DDG, 
+                           bool IsPostBB,  int numBlocks,
+                           SchedRegion *dev_rgn, DataDepGraph *dev_DDG, 
 			   MachineModel *dev_MM, curandState_t *dev_states)
     : ConstrainedScheduler(dataDepGraph, machineModel, upperBound, true) {
   VrfySched_ = vrfySched;
@@ -61,6 +61,8 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   dev_states_ = dev_states;
   dev_pheromone_elmnts_alloced_ = false;
   numAntsTerminated_ = 0;
+  numBlocks_ = numBlocks;
+  numThreads_ = numBlocks_ * NUMTHREADSPERBLOCK;
 
   use_fixed_bias = schedIni.GetBool("ACO_USE_FIXED_BIAS");
   use_tournament = schedIni.GetBool("ACO_TOURNAMENT");
@@ -803,15 +805,15 @@ void reduceToBestSchedPerBlock(InstSchedule **dev_schedules, int *blockBestIndex
 // reduce to only one best index. At the end of this function globalBestIndex
 // should be in blockBestIndex[0]
 __inline__ __device__
-void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex, ACOScheduler *dev_AcoSchdulr) {
-  __shared__ int sBestIndex[NUMBLOCKS/4];
+void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex, ACOScheduler *dev_AcoSchdulr, int numBlocks) {
+  __shared__ int sBestIndex[NUMBLOCKSMANYANTS/4];
   uint tid = threadIdx.x;
   int index, sBestIndex1, sBestIndex2;
   
   // Load best indices into shared mem, reduce by half while doing so
   // If there are more than 64 schedules in blockBestIndex, some threads
   // will have to load in more than one value
-  while (tid < NUMBLOCKS/4) {
+  while (tid < numBlocks/4) {
     if (dev_AcoSchdulr->shouldReplaceSchedule(dev_schedules[blockBestIndex[tid * 2]], 
                                               dev_schedules[blockBestIndex[tid * 2 + 1]], false))
       sBestIndex[tid] = blockBestIndex[tid * 2 + 1];
@@ -823,14 +825,14 @@ void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex, ACOSch
   __syncthreads();
 
   // reduce in smem
-  for (uint s = 1; s < NUMBLOCKS/4; s *= 2) {
+  for (uint s = 1; s < numBlocks/4; s *= 2) {
     tid = threadIdx.x;
     // if there are more than 32 schedules in smem, a thread
     // may reduce more than once per loop
-    while (tid < NUMBLOCKS/4) {
+    while (tid < numBlocks/4) {
       index = 2 * s * tid;
 
-      if (index + s < NUMBLOCKS/4) {
+      if (index + s < numBlocks/4) {
         sBestIndex1 = sBestIndex[index];
         sBestIndex2 = sBestIndex[index + s];
         if (dev_AcoSchdulr->shouldReplaceSchedule(
@@ -886,7 +888,6 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     RPTarget = dev_bestSched->GetSpillCost();
   else
     RPTarget = INT_MAX;
-  
   dev_AcoSchdulr->SetGlobalBestStalls(dev_bestSched->GetCrntLngth() - dev_DDG->GetInstCnt());
   // Start ACO
   while (dev_noImprovement < noImprovementMax && !lowerBoundSchedFound) {
@@ -898,14 +899,14 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     threadGroup.sync();
     globalBestIndex = INVALID_VALUE;
     // reduce dev_schedules to 1 best schedule per block
-    if (GLOBALTID < NUMTHREADS/2)
+    if (GLOBALTID < dev_AcoSchdulr->GetNumThreads()/2)
       reduceToBestSchedPerBlock(dev_schedules, blockBestIndex, dev_AcoSchdulr);
 
     threadGroup.sync();
 
     // one block to reduce blockBest schedules to one best schedule
     if (blockIdx.x == 0)
-      reduceToBestSched(dev_schedules, blockBestIndex, dev_AcoSchdulr);
+      reduceToBestSched(dev_schedules, blockBestIndex, dev_AcoSchdulr, dev_AcoSchdulr->GetNumBlocks());
 
     threadGroup.sync();    
 
@@ -1070,11 +1071,10 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
   InstCount InitialCost = InitialSchedule ? InitialSchedule->GetCost() : 0;
   InstCount TargetSC = InitialSchedule ? InitialSchedule->GetSpillCost()
                                         : heuristicSched->GetSpillCost();  
-
 #if USE_ACS
   initialValue_ = 2.0 / ((double)count_ * heuristicCost);
 #else
-  initialValue_ = (double)NUMTHREADS / heuristicCost;
+  initialValue_ = (double)numThreads_ / heuristicCost;
 #endif
   for (int i = 0; i < pheromone_size; i++)
     pheromone_[i] = initialValue_;
@@ -1107,18 +1107,18 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     CopyPheromonesToDevice(dev_AcoSchdulr);
     Logger::Info("Creating and copying schedules to device"); 
     // An array to temporarily hold schedules to be copied over
-    memSize = sizeof(InstSchedule) * NUMTHREADS;
+    memSize = sizeof(InstSchedule) * numThreads_;
     InstSchedule *temp_schedules = (InstSchedule *)malloc(memSize);
     // An array of pointers to schedules which are copied over
-    InstSchedule **host_schedules = new InstSchedule *[NUMTHREADS];
+    InstSchedule **host_schedules = new InstSchedule *[numThreads_];
     // Allocate one large array that will be split up between the dev arrays
     // of all InstSchedules. Massively decrease calls to cudaMalloc/Free
     InstCount *dev_temp;
     size_t sizePerSched = bestSchedule->GetSizeOfDevArrays();
-    memSize = sizePerSched * NUMTHREADS * sizeof(InstCount);
+    memSize = sizePerSched * numThreads_ * sizeof(InstCount);
     gpuErrchk(cudaMalloc(&dev_temp, memSize));
     memSize = sizeof(InstSchedule);
-    for (int i = 0; i < NUMTHREADS; i++) {
+    for (int i = 0; i < numThreads_; i++) {
       // Create new schedule
       host_schedules[i] = new InstSchedule(machMdl_, dataDepGraph_, true);
       // Pass a dev array to the schedule to be divided up between the required
@@ -1131,7 +1131,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     // Allocate and Copy array of schedules to device
     // A device array of schedules
     InstSchedule *dev_schedules_arr;
-    memSize = sizeof(InstSchedule) * NUMTHREADS;
+    memSize = sizeof(InstSchedule) * numThreads_;
     gpuErrchk(cudaMalloc(&dev_schedules_arr, memSize));
     // Copy schedules to device
     gpuErrchk(cudaMemcpy(dev_schedules_arr, temp_schedules, memSize,
@@ -1141,9 +1141,9 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     // Passing and array of schedules and dereferencing the array
     // to get pointers slows down the kernel significantly
     InstSchedule **dev_schedules;
-    memSize = sizeof(InstSchedule *) * NUMTHREADS;
+    memSize = sizeof(InstSchedule *) * numThreads_;
     gpuErrchk(cudaMallocManaged(&dev_schedules, memSize));
-    for (int i = 0; i < NUMTHREADS; i++)
+    for (int i = 0; i < numThreads_; i++)
       dev_schedules[i] = &dev_schedules_arr[i];
     gpuErrchk(cudaMemPrefetchAsync(dev_schedules, memSize, 0));
     // Copy over best schedule
@@ -1159,17 +1159,17 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
                          cudaMemcpyHostToDevice));
     // Create a global mem array for device to use in parallel reduction
     int *dev_blockBestIndex;
-    memSize = (NUMBLOCKS/2) * sizeof(int);
+    memSize = (NUMBLOCKSMANYANTS/2) * sizeof(int);
     gpuErrchk(cudaMalloc(&dev_blockBestIndex, memSize));
     // Make sure managed memory is copied to device before kernel start
     memSize = sizeof(ACOScheduler);
     gpuErrchk(cudaMemPrefetchAsync(dev_AcoSchdulr, memSize, 0));
-    Logger::Info("Launching Dev_ACO with %d blocks of %d threads", NUMBLOCKS,
+    Logger::Info("Launching Dev_ACO with %d blocks of %d threads", numBlocks_,
                                                            NUMTHREADSPERBLOCK);
     // Using Cooperative Grid Groups requires launching with
     // cudaLaunchCooperativeKernel which requires kernel args to be an array
     // of void pointers to host memory locations of the arguments
-    dim3 gridDim(NUMBLOCKS);
+    dim3 gridDim(numBlocks_);
     dim3 blockDim(NUMTHREADSPERBLOCK);
     void *dArgs[7];
     dArgs[0] = (void*)&dev_rgn_;
@@ -1192,7 +1192,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     // Free allocated memory that is no longer needed
     bestSchedule->FreeDeviceArrays();
     cudaFree(dev_bestSched);
-    for (int i = 0; i < NUMTHREADS; i++) {
+    for (int i = 0; i < numThreads_; i++) {
       delete host_schedules[i];
     }
     delete[] host_schedules;
@@ -1201,7 +1201,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     cudaFree(dev_schedules);
 
   } else { // Run ACO on cpu
-    Logger::Info("Running host ACO with %d ants per iteration", NUMHOSTTHREADS);
+    Logger::Info("Running host ACO with %d ants per iteration", numThreads_);
     InstCount RPTarget;
     if (!((BBWithSpill *)rgn_)->needsSLIL())
       RPTarget = bestSchedule->GetSpillCost();
@@ -1209,7 +1209,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
       RPTarget = MaxRPTarget;
     while (noImprovement < noImprovementMax) {
       iterationBest = nullptr;
-      for (int i = 0; i < NUMHOSTTHREADS; i++) {
+      for (int i = 0; i < numThreads_; i++) {
         InstSchedule *schedule = FindOneSchedule(RPTarget);
         if (print_aco_trace)
           PrintSchedule(schedule);
@@ -1286,8 +1286,8 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule) {
   int instNum = threadIdx.x;
 #endif
   // Each thread updates pheromone table for 1 instruction
-  // For the case NUMTHREADS < count_, increase instNum by 
-  // NUMTHREADS at the end of the loop.
+  // For the case numThreads < count_, increase instNum by 
+  // numThreads at the end of the loop.
   InstCount lastInstNum = -1;
   thrust::maximum<double> dmax;
   thrust::minimum<double> dmin;
@@ -1315,7 +1315,7 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule) {
 #if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
     // parallel on global level
     // Increase instNum by NUMTHREADS until over count_
-    instNum += NUMTHREADS;
+    instNum += numThreads_;
 #elif (PHER_UPDATE_SCHEME == ALL || PHER_UPDATE_SCHEME == ONE_PER_BLOCK)
     // parallel on block level
     instNum += NUMTHREADSPERBLOCK;
@@ -1518,42 +1518,42 @@ void ACOScheduler::setInitialSched(InstSchedule *Sched) {
 void ACOScheduler::AllocDevArraysForParallelACO() {
   size_t memSize;
   // Alloc dev array for schduldInstCnt_
-  memSize = sizeof(InstCount) * NUMTHREADS;
+  memSize = sizeof(InstCount) * numThreads_;
   gpuErrchk(cudaMalloc(&dev_schduldInstCnt_, memSize));
   // Alloc dev array for crntCycleNum_;
-  memSize = sizeof(InstCount) * NUMTHREADS;
+  memSize = sizeof(InstCount) * numThreads_;
   gpuErrchk(cudaMalloc(&dev_crntCycleNum_, memSize));
   // Alloc dev array for crntSlotNum_;
-  memSize = sizeof(InstCount) * NUMTHREADS;
+  memSize = sizeof(InstCount) * numThreads_;
   gpuErrchk(cudaMalloc(&dev_crntSlotNum_, memSize));
   // Allo dev array for crntRealSlotNum_
-  memSize = sizeof(InstCount) * NUMTHREADS;
+  memSize = sizeof(InstCount) * numThreads_;
   gpuErrchk(cudaMalloc(&dev_crntRealSlotNum_, memSize));
   // Alloc dev array for isCrntCycleBlkd_;
-  memSize = sizeof(bool) * NUMTHREADS;
+  memSize = sizeof(bool) * numThreads_;
   gpuErrchk(cudaMalloc(&dev_isCrntCycleBlkd_, memSize));
   
   // Alloc dev array for readyLs;
-  readyLs->AllocDevArraysForParallelACO(NUMTHREADS);
+  readyLs->AllocDevArraysForParallelACO(numThreads_);
   // Alloc dev arrays for MaxScoringInst
-  memSize = sizeof(InstCount) * NUMTHREADS;
+  memSize = sizeof(InstCount) * numThreads_;
   gpuErrchk(cudaMalloc(&dev_MaxScoringInst, memSize));
   // Alloc dev array for avlblSlotsInCrntCycle_
-  memSize = sizeof(int16_t *) * NUMTHREADS;
+  memSize = sizeof(int16_t *) * numThreads_;
   gpuErrchk(cudaMallocManaged(&dev_avlblSlotsInCrntCycle_, memSize));
   // Alloc dev arrays of avlblSlotsInCrntCycle_ for each thread
   memSize = sizeof(int16_t) * issuTypeCnt_;
-  for (int i = 0; i < NUMTHREADS; i++) {
+  for (int i = 0; i < numThreads_; i++) {
     gpuErrchk(cudaMalloc(&dev_avlblSlotsInCrntCycle_[i], memSize));
   }
   // Alloc dev arrays for rsrvSlots_
-  memSize = sizeof(ReserveSlot *) * NUMTHREADS;
+  memSize = sizeof(ReserveSlot *) * numThreads_;
   gpuErrchk(cudaMallocManaged(&dev_rsrvSlots_, memSize));
   memSize = sizeof(ReserveSlot) * issuRate_;
-  for (int i = 0; i < NUMTHREADS; i++) {
+  for (int i = 0; i < numThreads_; i++) {
     gpuErrchk(cudaMalloc(&dev_rsrvSlots_[i], memSize));
   }
-  memSize = sizeof(int16_t) * NUMTHREADS;
+  memSize = sizeof(int16_t) * numThreads_;
   gpuErrchk(cudaMalloc(&dev_rsrvSlotCnt_, memSize));
 }
 
@@ -1607,9 +1607,9 @@ void ACOScheduler::CopyPointersToDevice(ACOScheduler *dev_ACOSchedulr) {
   gpuErrchk(cudaMemcpy(dev_ACOSchedulr->dev_kHelper, kHelper, memSize,
 		       cudaMemcpyHostToDevice));
   // make sure cudaMallocManaged memory is copied to device before kernel start
-  memSize = sizeof(int16_t *) * NUMTHREADS;
+  memSize = sizeof(int16_t *) * numThreads_;
   gpuErrchk(cudaMemPrefetchAsync(dev_avlblSlotsInCrntCycle_, memSize, 0));
-  memSize = sizeof(ReserveSlot *) * NUMTHREADS;
+  memSize = sizeof(ReserveSlot *) * numThreads_;
   gpuErrchk(cudaMemPrefetchAsync(dev_rsrvSlots_, memSize, 0));
 }
 
@@ -1621,7 +1621,7 @@ void ACOScheduler::FreeDevicePointers() {
   cudaFree(dev_isCrntCycleBlkd_);
   cudaFree(slotsPerTypePerCycle_);
   cudaFree(instCntPerIssuType_);
-  for (int i = 0; i < NUMTHREADS; i++){
+  for (int i = 0; i < numThreads_; i++){
     cudaFree(dev_avlblSlotsInCrntCycle_[i]);
     cudaFree(dev_rsrvSlots_[i]);
   }
