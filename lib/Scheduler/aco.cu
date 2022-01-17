@@ -68,7 +68,6 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   use_tournament = schedIni.GetBool("ACO_TOURNAMENT");
   bias_ratio = schedIni.GetFloat("ACO_BIAS_RATIO");
   local_decay = schedIni.GetFloat("ACO_LOCAL_DECAY");
-  ants_per_iteration = schedIni.GetInt("ACO_ANT_PER_ITERATION");
   print_aco_trace = schedIni.GetBool("ACO_TRACE");
   IsTwoPassEn = schedIni.GetBool("USE_TWO_PASS");
 
