@@ -220,7 +220,7 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
   if (DEV_ACO && dataDepGraph_->GetInstCnt() >= REGION_MIN_SIZE)
     numBlocks = schedIni.GetBool("ACO_MANY_ANTS_ENABLED") && dataDepGraph_->GetInstCnt() > MANY_ANT_MIN_SIZE ? schedIni.GetInt("ACO_MANY_ANTS_PER_ITERATION_BLOCKS") : schedIni.GetInt("ACO_DEVICE_ANT_PER_ITERATION_BLOCKS");
   else
-    numBlocks = schedIni.GetInt("ACO_HOST_BLOCKS");
+    numBlocks = schedIni.GetInt("HOST_ANTS");
 
   if (AcoSchedulerEnabled) {
     AcoBeforeEnum = schedIni.GetBool("ACO_BEFORE_ENUM");
@@ -344,12 +344,81 @@ FUNC_RESULT SchedRegion::FindOptimalSchedule(
     CmputNormCost_(lstSched, CCM_DYNMC, hurstcExecCost, true);
     hurstcCost_ = lstSched->GetCost();
     InstCount maxIndependentInstructions = 0;
-    for (int i = 0; i < dataDepGraph_->GetInstCnt(); i++) {
-      int independentInstructions = dataDepGraph_->GetInstCnt() - dataDepGraph_->GetInstByIndx(i)->GetRcrsvPrdcsrCnt() - dataDepGraph_->GetInstByIndx(i)->GetRcrsvScsrCnt();
-      maxIndependentInstructions = independentInstructions > maxIndependentInstructions ? independentInstructions : maxIndependentInstructions;
+    std::string readyListUB = schedIni.GetString("ACO_READY_LIST_UB");
+    if (readyListUB == "NO" || readyListUB == "MIN_DEGREE") {
+      for (int i = 0; i < dataDepGraph_->GetInstCnt(); i++) {
+        int independentInstructions = dataDepGraph_->GetInstCnt() - dataDepGraph_->GetInstByIndx(i)->GetRcrsvPrdcsrCnt() - dataDepGraph_->GetInstByIndx(i)->GetRcrsvScsrCnt();
+        maxIndependentInstructions = independentInstructions > maxIndependentInstructions ? independentInstructions : maxIndependentInstructions;
+      }
+      if (readyListUB == "MIN_DEGREE") {
+        dataDepGraph_->SetMaxIndependentInstructions(maxIndependentInstructions);
+      }
+      else {
+        dataDepGraph_->SetMaxIndependentInstructions(dataDepGraph_->GetInstCnt());
+      }
+      
+      Logger::Info("Ready List Size is: %d, Percent of total number of instructions: %f", dataDepGraph_->GetMaxIndependentInstructions(), double(maxIndependentInstructions)/double(dataDepGraph_->GetInstCnt()));
     }
-    dataDepGraph_->SetMaxIndependentInstructions(maxIndependentInstructions);
-    Logger::Info("Ready List Size is: %d, Percent of total number of instructions: %f", maxIndependentInstructions, double(maxIndependentInstructions)/double(dataDepGraph_->GetInstCnt()));
+    else if (readyListUB == "ANNIHILATION") {
+      int annihilationNumber;
+      std::vector<int> degreeSequence;
+      for (int i = 0; i < dataDepGraph_->GetInstCnt()-2; i++) {
+        int degree = dataDepGraph_->GetInstByIndx(i)->GetRcrsvPrdcsrCnt() + dataDepGraph_->GetInstByIndx(i)->GetRcrsvScsrCnt();
+        // std::cout << degree - 2 << " ";
+        degreeSequence.push_back(degree - 2);
+        int independentInstructions = dataDepGraph_->GetInstCnt() - degree;
+        maxIndependentInstructions = independentInstructions > maxIndependentInstructions ? independentInstructions : maxIndependentInstructions;
+      }
+      // std::cout << "\n";
+      std::sort(std::begin(degreeSequence), std::end(degreeSequence), std::greater<int>());
+
+      int frontPointer = 0;
+      int backPointer = dataDepGraph_->GetInstCnt() - 3;
+      int remainder = 0;
+
+      // for (auto i : degreeSequence) 
+      //   std::cout << i << " ";
+      // std::cout << "\n";
+      if (degreeSequence[frontPointer] != 0) {
+        while (frontPointer < backPointer) {
+          // delete front element
+          if (remainder == 0) {
+            remainder = degreeSequence[frontPointer];
+            // remove this I guess
+            degreeSequence[frontPointer] = 0;
+            frontPointer++;
+          }
+
+          // subtract front from back element
+          if (degreeSequence[backPointer] <= remainder) {
+            remainder -= degreeSequence[backPointer];
+            // remove this line I guess
+            degreeSequence[backPointer] = 0;
+            backPointer--;
+          }
+          else {
+            degreeSequence[backPointer] -= remainder;
+            remainder = 0;
+          }
+
+          // for (auto i : degreeSequence) 
+          //   std::cout << i << " ";
+          // std::cout << "Remainder: " << remainder << " FP: " << frontPointer << " BP: " << backPointer;
+          // std::cout << "\n";
+        }
+
+        // if there is no remainder but there is still a single nonzero element left in the array
+        // just increment the counter instead of doing another loop
+        if (remainder == 0 && frontPointer == backPointer)
+          frontPointer++;
+      }
+      
+      annihilationNumber = dataDepGraph_->GetInstCnt() - frontPointer - 2;
+      dataDepGraph_->SetMaxIndependentInstructions(std::min(maxIndependentInstructions, annihilationNumber));
+      Logger::Info("Degree bound: %d, Annihilation number: %d", maxIndependentInstructions, annihilationNumber);
+      Logger::Info("Ready List Size is: %d, Percent of total number of instructions: %f", dataDepGraph_->GetMaxIndependentInstructions(), double(dataDepGraph_->GetMaxIndependentInstructions())/double(dataDepGraph_->GetInstCnt()));
+    }
+    
     // This schedule is optimal so ACO will not be run
     // so set bestSched here.
     if (hurstcCost_ == 0 || maxIndependentInstructions == 1 || (IsSecondPass() && hurstcExecCost == 0)) {

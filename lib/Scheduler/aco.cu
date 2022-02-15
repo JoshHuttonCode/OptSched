@@ -11,6 +11,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include <iomanip>
 #include <iostream>
+#include <unordered_map>
 #include <sstream>
 
 using namespace llvm::opt_sched;
@@ -32,6 +33,7 @@ double RandDouble(double min, double max) {
 #define MAX_DEPOSITION 6
 #define MAX_DEPOSITION_MINUS_MIN (MAX_DEPOSITION - MIN_DEPOSITION)
 #define ACO_SCHED_STALLS 1
+#define CHECK_DIFFERENT_SCHEDULES 1
 //#define BIASED_CHOICES 10000000
 //#define LOCAL_DECAY 0.1
 
@@ -63,6 +65,8 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   numAntsTerminated_ = 0;
   numBlocks_ = numBlocks;
   numThreads_ = numBlocks_ * NUMTHREADSPERBLOCK;
+  if(!DEV_ACO)
+    numThreads_ = schedIni.GetInt("HOST_ANTS");
 
   use_fixed_bias = schedIni.GetBool("ACO_USE_FIXED_BIAS");
   use_tournament = schedIni.GetBool("ACO_TOURNAMENT");
@@ -1206,10 +1210,37 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
       RPTarget = bestSchedule->GetSpillCost();
     else
       RPTarget = MaxRPTarget;
+    #ifdef CHECK_DIFFERENT_SCHEDULES
+      std::unordered_map<string, int> schedMap;
+      int diffSchedCount = 0;
+    #endif
     while (noImprovement < noImprovementMax) {
       iterationBest = nullptr;
       for (int i = 0; i < numThreads_; i++) {
         InstSchedule *schedule = FindOneSchedule(RPTarget);
+        
+        #ifdef CHECK_DIFFERENT_SCHEDULES
+          // check if schedule is in Map
+          InstCount instNum, cycleNum, slotNum;
+          // get first instruction in string
+          instNum = schedule->GetFrstInst(cycleNum, slotNum);
+          std::string schedString = std::to_string(instNum);
+          // prepare next instruction in comma separated list
+          instNum = schedule->GetNxtInst(cycleNum, slotNum);
+          while (instNum != INVALID_VALUE) {
+            schedString.append(",");
+            schedString.append(std::to_string(instNum));
+            instNum = schedule->GetNxtInst(cycleNum, slotNum);
+          }
+          schedule->ResetInstIter();
+          if (schedMap.find(schedString) == schedMap.end()) {
+            schedMap[schedString] = 1;
+            diffSchedCount++;
+          }
+          else {
+            schedMap[schedString] = schedMap[schedString] + 1;
+          }
+        #endif
         if (print_aco_trace)
           PrintSchedule(schedule);
         if (shouldReplaceSchedule(iterationBest, schedule, false)) {
@@ -1260,6 +1291,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
       iterations++;
     }
     Logger::Info("%d ants terminated early", numAntsTerminated_);
+    Logger::Info("%d different schedules for %d total ants", diffSchedCount, (iterations + 1) * numThreads_ - numAntsTerminated_);
   } // End run on CPU
 
   printf("Best schedule: ");
