@@ -778,6 +778,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
 
 __global__
 void FindOneSchedule(ACOScheduler *dev_AcoSchdulr, InstSchedule **dev_schedules) {
+  // Reset schedules to post constructor state
   dev_schedules[GLOBALTID]->Initialize();
   dev_AcoSchdulr->FindOneSchedule(dev_RPTarget,
                                   dev_schedules[GLOBALTID]);
@@ -989,7 +990,6 @@ void selectIterationBest(ACOScheduler *dev_AcoSchdulr, InstSchedule **dev_schedu
     } else {
       dev_noImprovement++;
     }
-    // printf("lower bound found: %s, no improvement: %d\n", dev_lowerBoundSchedFound ? "true" : "false", dev_noImprovement);
   }
 }
 
@@ -1027,50 +1027,31 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
   int *dNoImprovement;
   bool *dLowerBoundSchedFound;
 
-  // cudaGetSymbolAddress((void **)&dNoImprovement, dev_noImprovement);
-  // cudaGetSymbolAddress((void **)&dLowerBoundSchedFound, dev_lowerBoundSchedFound);
   // Start ACO
+  cudaDeviceSynchronize();
   while (noImprovement < noImprovementMax && !lowerBoundSchedFound) {
-    // ALL BLOCKS DO THIS
-    // Reset schedules to post constructor state
-    cudaDeviceSynchronize();
     FindOneSchedule<<<gridDim, NUMTHREADSPERBLOCK>>>(dev_AcoSchdulr, dev_schedules);
     // Sync threads after schedule creation
     cudaDeviceSynchronize();
-    // Logger::Info("Post FindOneSchedule Error: %s", 
-    //              cudaGetErrorString(cudaGetLastError()));
     
     // reduce dev_schedules to 1 best schedule per block
-    // HALF OF BLOCKS DO THIS
     reduceToBestSchedPerBlock<<<gridDim.x/2, NUMTHREADSPERBLOCK>>>(dev_schedules, blockBestIndex, dev_AcoSchdulr);
     cudaDeviceSynchronize();
-    // Logger::Info("Post reduceToBestSchedPerBlock Error: %s", 
-    //              cudaGetErrorString(cudaGetLastError()));
 
     // one block to reduce blockBest schedules to one best schedule
     reduceToBestSched<<<1, NUMTHREADSPERBLOCK>>>(dev_schedules, blockBestIndex, dev_AcoSchdulr, dev_AcoSchdulr->GetNumBlocks());
     cudaDeviceSynchronize();
-    // Logger::Info("Post reduceToBestSched Error: %s",
-    //              cudaGetErrorString(cudaGetLastError()));
 
     selectIterationBest<<<1, NUMTHREADSPERBLOCK>>>(dev_AcoSchdulr, dev_schedules, blockBestIndex, dev_bestSched, dev_rgn);
-    // wait for other blocks to finish before starting next iteration
     cudaDeviceSynchronize();
-    // Logger::Info("Post selectIterationBest Error: %s",
-    //              cudaGetErrorString(cudaGetLastError()));
 
-    // Copy dev_bestSched back to host
-    size_t memSize = sizeof(int);
+    // Copy number of iterations without improvement and if a lower bound schedule was found back to host
     gpuErrchk(cudaMemcpyFromSymbol(&noImprovement, dev_noImprovement, sizeof(dev_noImprovement)));
-    memSize = sizeof(bool);
     gpuErrchk(cudaMemcpyFromSymbol(&lowerBoundSchedFound, dev_lowerBoundSchedFound, sizeof(dev_lowerBoundSchedFound)));
     
-
     cudaDeviceSynchronize();
     UpdatePheromone<<<gridDim, NUMTHREADSPERBLOCK>>>(dev_schedules, dev_AcoSchdulr, dev_bestSched);
     cudaDeviceSynchronize();
-    // Logger::Info("Post UpdatePheromone Error: %s",
-    //              cudaGetErrorString(cudaGetLastError()));
     iterations++;
     Logger::Info("Iterations completed: %d", iterations);
   }
