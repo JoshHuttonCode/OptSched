@@ -870,8 +870,9 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
             InstSchedule *dev_bestSched, int noImprovementMax, 
             int *blockBestIndex) {
   // holds cost and index of bestSched per block
-  __shared__ int bestIndex, dev_iterations;
-  __shared__ bool needsSLIL;
+  __shared__ int bestIndex;
+  int dev_iterations;
+  bool needsSLIL;
   needsSLIL = ((BBWithSpill *)dev_rgn)->needsSLIL();
   bool IsSecondPass = dev_rgn->IsSecondPass();
   dev_rgn->SetDepGraph(dev_DDG);
@@ -891,7 +892,6 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     RPTarget = dev_bestSched->GetSpillCost();
   else
     RPTarget = INT_MAX;
-  dev_AcoSchdulr->SetGlobalBestStalls(dev_bestSched->GetCrntLngth() - dev_DDG->GetInstCnt());
   // Start ACO
   while (dev_noImprovement < noImprovementMax && !lowerBoundSchedFound) {
     // Reset schedules to post constructor state
@@ -939,7 +939,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
         // update RPTarget if we are in second pass and not using SLIL
         if (!needsSLIL)
           RPTarget = dev_bestSched->GetSpillCost();
-        InstCount globalStalls = 1 > dev_bestSched->getTotalStalls() ? 1 : dev_bestSched->getTotalStalls();
+        InstCount globalStalls = dev_bestSched->getTotalStalls();
         dev_AcoSchdulr->SetGlobalBestStalls(globalStalls);
         printf("New best sched found by thread %d\n", globalBestIndex);
         printf("ACO found schedule "
@@ -957,7 +957,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
 #else
           // for testing compile times disable resetting dev_noImprovement to
           // allow the same number of iterations every time
-          atomicAdd(&dev_noImprovement, 1);
+          dev_noImprovement++;
 #endif
         // if a schedule is found with the cost at the lower bound
         // exit the loop after the current iteration is finished
@@ -968,9 +968,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
           printf("Schedule with 0 PERP was found\n");
         }
       } else {
-        atomicAdd(&dev_noImprovement, 1);
-        if (dev_noImprovement > noImprovementMax)
-          break;
+        dev_noImprovement++;
       }
     }
         // perform pheremone update based on selected scheme
@@ -1018,7 +1016,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     // make sure no threads reset schedule before above operations complete
     dev_schedules[GLOBALTID]->resetTotalStalls();
     dev_schedules[GLOBALTID]->resetUnnecessaryStalls();
-    if (threadIdx.x == 0)
+    if (GLOBALTID == 0)
       dev_iterations++;
   }
   if (GLOBALTID == 0) {
@@ -1102,7 +1100,10 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
   int noImprovement = 0; // how many iterations with no improvement
   int iterations = 0;
   InstSchedule *iterationBest = nullptr;
-  SetGlobalBestStalls(std::max(1, bestSchedule->GetCrntLngth() - dataDepGraph_->GetInstCnt()));
+  if (dev_AcoSchdulr)
+    dev_AcoSchdulr->SetGlobalBestStalls(std::max(0, bestSchedule->GetCrntLngth() - dataDepGraph_->GetInstCnt()));
+  else
+    SetGlobalBestStalls(std::max(0, bestSchedule->GetCrntLngth() - dataDepGraph_->GetInstCnt()));
   
   if (DEV_ACO && count_ >= REGION_MIN_SIZE) { // Run ACO on device
     size_t memSize;
