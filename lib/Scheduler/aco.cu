@@ -859,10 +859,11 @@ void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex, ACOSch
 // Update pheromones with all schedules
 #define ALL 2
 // select which pheromone update scheme to use
-#define PHER_UPDATE_SCHEME ONE_PER_ITER
+#define PHER_UPDATE_SCHEME ONE_PER_BLOCK
 
 __device__ int globalBestIndex, dev_noImprovement, dev_schedsUsed, dev_schedsFound;
-__device__ bool lowerBoundSchedFound;
+__device__ pheromone_t dev_totalPherInTable;
+__device__ bool lowerBoundSchedFound, isGlobalBest;
 
 __global__
 void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
@@ -880,6 +881,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
   dev_noImprovement = 0;
   dev_iterations = 0;
   lowerBoundSchedFound = false;
+  isGlobalBest = false;
   // Used to synchronize all launched threads
   auto threadGroup = cg::this_grid();
   // Get RPTarget
@@ -919,6 +921,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
 
     // 1 thread compares iteration best to overall bestsched
     if (GLOBALTID == 0) {
+      printf("Iteration %d\n", dev_iterations);
       // Compare to initialSched/current best
       if (globalBestIndex != INVALID_VALUE &&
           dev_AcoSchdulr->shouldReplaceSchedule(dev_bestSched, 
@@ -967,8 +970,10 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
           lowerBoundSchedFound = true;
           printf("Schedule with 0 PERP was found\n");
         }
+        isGlobalBest = true;
       } else {
         dev_noImprovement++;
+        isGlobalBest = false;
       }
     }
         // perform pheremone update based on selected scheme
@@ -976,11 +981,11 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     // Another hard sync point after iteration best selection
     threadGroup.sync();
     if (globalBestIndex != INVALID_VALUE)
-      dev_AcoSchdulr->UpdatePheromone(dev_schedules[globalBestIndex]);
+      dev_AcoSchdulr->UpdatePheromone(dev_schedules[globalBestIndex], isGlobalBest);
 #elif (PHER_UPDATE_SCHEME == ONE_PER_BLOCK)
     // each block finds its blockIterationBest
     if (threadIdx.x == 0) {
-      bestCost = dev_schedules[GLOBALTID]->GetCost();
+      auto bestCost = dev_schedules[GLOBALTID]->GetCost();
       bestIndex = GLOBALTID;
       for (int i = GLOBALTID + 1; i < GLOBALTID + NUMTHREADSPERBLOCK; i++) {
         if (dev_schedules[i]->GetCost() < bestCost) {
@@ -991,7 +996,13 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     }
     // wait for thread 0 of each block to find blockIterationBest
     threadGroup.sync();
-    dev_AcoSchdulr->UpdatePheromone(dev_schedules[bestIndex]);
+    if (bestIndex == globalBestIndex) {
+      dev_AcoSchdulr->UpdatePheromone(dev_schedules[bestIndex], isGlobalBest);
+    }
+    else {
+      dev_AcoSchdulr->UpdatePheromone(dev_schedules[bestIndex], false);
+    }
+    
 #elif (PHER_UPDATE_SCHEME == ALL)
     // each block loops over all schedules created by its threads and
     // updates pheromones in block level parallel
@@ -1002,15 +1013,22 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
       //   printf("test RP: %d, best RP: %d, test length: %d, best length: %d, ", dev_schedules[i]->GetNormSpillCost(), dev_bestSched->GetNormSpillCost(), dev_schedules[i]->GetExecCost(), dev_bestSched->GetExecCost());
       if (dev_schedules[i]->GetNormSpillCost() <= dev_bestSched->GetNormSpillCost() &&
          (!IsSecondPass || dev_schedules[i]->GetExecCost() <= dev_bestSched->GetExecCost())) {
-        dev_AcoSchdulr->UpdatePheromone(dev_schedules[i]);
+        dev_AcoSchdulr->UpdatePheromone(dev_schedules[i], false);
         atomicAdd(&dev_schedsUsed, 1);
       }
       else {
-        dev_AcoSchdulr->UpdatePheromone(dev_schedules[i]);
+        dev_AcoSchdulr->UpdatePheromone(dev_schedules[i], false);
         atomicAdd(&dev_schedsFound, 1);
       }
     }
 #endif
+    threadGroup.sync();
+    // if (GLOBALTID==0)
+    //   dev_AcoSchdulr->PrintPheromone();
+    threadGroup.sync();
+    dev_AcoSchdulr->ScalePheromoneTable();
+    // if (GLOBALTID==0)
+    //   dev_AcoSchdulr->PrintPheromone();
     // wait for other blocks to finish before starting next iteration
     threadGroup.sync();
     // make sure no threads reset schedule before above operations complete
@@ -1094,7 +1112,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     printf("Initial schedule is better\n");
   }
   if (bestSchedule) {
-    UpdatePheromone(bestSchedule);
+    UpdatePheromone(bestSchedule, false);
   }
   bestSchedule->setIsZeroPerp(false);
   int noImprovement = 0; // how many iterations with no improvement
@@ -1255,7 +1273,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
       }
 #if !USE_ACS
       if (iterationBest)
-        UpdatePheromone(iterationBest);
+        UpdatePheromone(iterationBest, false);
 #endif
       if (shouldReplaceSchedule(bestSchedule, iterationBest, true)) {
         if (bestSchedule && bestSchedule != InitialSchedule)
@@ -1287,7 +1305,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
         noImprovement++;
       }
 #if USE_ACS
-      UpdatePheromone(bestSchedule);
+      UpdatePheromone(bestSchedule, false);
 #endif
       iterations++;
     }
@@ -1308,7 +1326,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
 }
 
 __host__ __device__
-void ACOScheduler::UpdatePheromone(InstSchedule *schedule) {
+void ACOScheduler::UpdatePheromone(InstSchedule *schedule, bool isIterationBest) {
 #ifdef __CUDA_ARCH__ // device version of function
 #if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
   // parallel on global level
@@ -1324,12 +1342,26 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule) {
   thrust::maximum<double> dmax;
   thrust::minimum<double> dmin;
   pheromone_t portion = schedule->GetCost() / (ScRelMax * 1.5);
+  // if (GLOBALTID == 0)
+  //   printf("portion: %f\n", portion);
   pheromone_t deposition;
-  if (portion < 1)
-    deposition = (1 - portion) * MAX_DEPOSITION_MINUS_MIN + MIN_DEPOSITION;
-  else
-    deposition = MIN_DEPOSITION;
-
+  if (isIterationBest)
+    deposition = 100000;
+  else {
+    if (portion < 1)
+      deposition = (1 - portion) * MAX_DEPOSITION_MINUS_MIN + MIN_DEPOSITION;
+    else {
+      #if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
+        deposition = MIN_DEPOSITION;
+      #elif (PHER_UPDATE_SCHEME == ONE_PER_BLOCK)
+        deposition = MIN_DEPOSITION / 80;
+      #elif (PHER_UPDATE_SCHEME == ALL)
+        deposition = MIN_DEPOSITION / numThreads_;
+      #endif
+    }
+  }
+  if (deposition < 0)
+    printf("yo something is wrong\n");
   pheromone_t *pheromone;
   while (instNum < count_) {
     // Get the instruction that comes before inst in the schedule
@@ -1337,13 +1369,12 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule) {
     lastInstNum = schedule->GetPrevInstNum(instNum);
     // Get corresponding pheromone and update it
     pheromone = &Pheromone(lastInstNum, instNum);
-    *pheromone = *pheromone + deposition;
-    // decay pheromone for all trails leading to instNum
-    for (int j = 0; j < count_; j++) {
-      pheromone = &Pheromone(j, instNum);
-      *pheromone *= (1 - decay_factor);
-      *pheromone = dmax(1, dmin(8, *pheromone));
-    }
+    // if (GLOBALTID==8)
+    //   printf("before inst: %d, pher: %f\n", instNum, *pheromone);
+    atomicAdd(pheromone, deposition);
+    // *pheromone = *pheromone + deposition;
+    // if (GLOBALTID==8)
+    //   printf("after inst: %d, pher: %f\n", instNum, Pheromone(lastInstNum, instNum));
 #if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
     // parallel on global level
     // Increase instNum by NUMTHREADS until over count_
@@ -1391,10 +1422,83 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule) {
     for (int j = 0; j < count_; j++) {
       pheromone = &Pheromone(i, j);
       *pheromone *= (1 - decay_factor);
-      *pheromone = fmax(1, fmin(8, *pheromone));
+      // *pheromone = fmax(1, fmin(8, *pheromone));
     }
   }
 #endif
+  if (print_aco_trace)
+    PrintPheromone();
+#endif
+}
+
+
+__host__ __device__
+void ACOScheduler::ScalePheromoneTable() {
+#ifdef __CUDA_ARCH__ // device version of function
+  int instNum = GLOBALTID;
+  dev_totalPherInTable = 0;
+  // Each thread updates pheromone table for 1 instruction
+  // For the case numThreads < count_, increase instNum by 
+  // numThreads at the end of the loop.
+  thrust::maximum<double> dmax;
+  thrust::minimum<double> dmin;
+  pheromone_t *pheromone;
+  while (instNum < count_) {
+    // decay pheromone for all trails leading to instNum
+    for (int j = 0; j < count_; j++) {
+      pheromone = &Pheromone(j, instNum);
+      *pheromone *= (1 - decay_factor);
+      // clamp pheromone values to be between 1 and 8
+      *pheromone = dmax(1, dmin(8, *pheromone));
+      atomicAdd(&dev_totalPherInTable, *pheromone);
+    }
+    // parallel on global level
+    // Increase instNum by NUMTHREADS until over count_
+    instNum += numThreads_;
+  }
+  // adjust pheromone table by scaling factor
+  pheromone_t scalingFactor = (double) (count_ * count_ * 4.5)/dev_totalPherInTable;
+  pheromone_t scalingAdjustment = 4.5 - dev_totalPherInTable / (count_ * count_);
+  instNum = GLOBALTID;
+  // if (GLOBALTID==0)
+    // printf("total pher: %f, scaling: %f\n", dev_totalPherInTable, scalingFactor);
+    // printf("total pher: %f, scaling adjustment: %f\n", dev_totalPherInTable, scalingAdjustment);
+  while (instNum < count_) {
+    // restrict pheromone for all trails leading to instNum
+    // to be within range
+    for (int j = 0; j < count_; j++) {
+      pheromone = &Pheromone(j, instNum);
+      *pheromone = *pheromone + scalingAdjustment;
+      *pheromone = dmax(1, dmin(8, *pheromone));
+    }
+    // parallel on global level
+    // Increase instNum by NUMTHREADS until over count_
+    instNum += numThreads_;
+  }
+  if (print_aco_trace && GLOBALTID==0)
+    PrintPheromone();
+
+#else // host version of function
+
+  pheromone_t *pheromone, totalPherInTable;
+  totalPherInTable = 0;
+  // clamp pheromone to range
+  for (int i = 0; i < count_; i++) {
+    for (int j = 0; j < count_; j++) {
+      pheromone = &Pheromone(i, j);
+      *pheromone = fmax(1, fmin(8, *pheromone));
+      totalPherInTable += *pheromone;
+    }
+  }
+
+  // pheromone_t scalingFactor = (double) (count_ * count_ * 4.5)/totalPherInTable;
+  // for (int i = 0; i < count_; i++) {
+  //   for (int j = 0; j < count_; j++) {
+  //     pheromone = &Pheromone(i, j);
+  //     *pheromone = *pheromone * scalingFactor;
+  //     *pheromone = fmax(1, fmin(8, *pheromone));
+  //   }
+  // }
   if (print_aco_trace)
     PrintPheromone();
 #endif
@@ -1490,7 +1594,7 @@ void ACOScheduler::PrintPheromone() {
     for (int j = 0; j < count_; j++) {
       //std::cerr << std::scientific << std::setprecision(8) << Pheromone(i, j)
       //          << " ";
-      printf("%.3e ", Pheromone(i, j));
+      printf("%.1f ", Pheromone(i, j));
     }
     //std::cerr << std::endl;
     printf("\n");

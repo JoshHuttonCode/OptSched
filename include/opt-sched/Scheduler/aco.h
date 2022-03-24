@@ -79,7 +79,9 @@ public:
   InstSchedule *FindOneSchedule(InstCount RPTarget,
                                 InstSchedule *dev_schedule = NULL);
   __host__ __device__
-  void UpdatePheromone(InstSchedule *schedule);
+  void UpdatePheromone(InstSchedule *schedule, bool isIterationBest);
+  __host__ __device__
+  void ScalePheromoneTable();
   // Copies pheromone table to passed shared memory array
   __device__ 
   void CopyPheromonesToSharedMem(double *s_pheromone);
@@ -96,6 +98,8 @@ public:
   int GetNumBlocks() { return numBlocks_; }
   __host__ __device__
   int GetNumThreads() { return numThreads_; }
+  __host__ __device__
+  void PrintPheromone();
 
 private:
   __host__ __device__
@@ -105,8 +109,6 @@ private:
   __host__ __device__
   pheromone_t Score(InstCount FromId, InstCount ToId, HeurType ToHeuristic);
   DCF_OPT ParseDCFOpt(const std::string &opt);
-  __host__ __device__
-  void PrintPheromone();
   __host__ __device__
   InstCount SelectInstruction(SchedInstruction *lastInst, InstCount totalStalls, 
                               SchedRegion *rgn, bool &unnecessarilyStalling, 
