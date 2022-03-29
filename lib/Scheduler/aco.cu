@@ -921,7 +921,6 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
 
     // 1 thread compares iteration best to overall bestsched
     if (GLOBALTID == 0) {
-      printf("Iteration %d\n", dev_iterations);
       // Compare to initialSched/current best
       if (globalBestIndex != INVALID_VALUE &&
           dev_AcoSchdulr->shouldReplaceSchedule(dev_bestSched, 
@@ -1360,8 +1359,6 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule, bool isIterationBest)
       #endif
     }
   }
-  if (deposition < 0)
-    printf("yo something is wrong\n");
   pheromone_t *pheromone;
   while (instNum < count_) {
     // Get the instruction that comes before inst in the schedule
