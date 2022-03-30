@@ -497,26 +497,16 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
   //finally we pick whether we will return the fp choice or max score inst w/o using a branch
   bool UseMax = (rand < choose_best_chance) || currentlyWaiting;
   size_t indx = UseMax ? MaxScoreIndx : fpIndx;
-  // #ifdef __CUDA_ARCH__
-  //   if (GLOBALTID==0)
-  //     printf("UseMax: %s, maxInstNum: %d, maxInstScore: %f, fpInstNum: %d, readySize: %d\n", UseMax ? "true" : "false", *dev_readyLs->getInstIdAtIndex(MaxScoreIndx), *dev_readyLs->getInstScoreAtIndex(MaxScoreIndx), *dev_readyLs->getInstIdAtIndex(fpIndx), dev_readyLs->getReadyListSize());
-  // #else
-  //   printf("UseMax: %s, maxInstNum: %d, maxInstScore: %f, fpInstNum: %d, readySize: %d\n", UseMax ? "true" : "false", *readyLs->getInstIdAtIndex(MaxScoreIndx), *readyLs->getInstScoreAtIndex(MaxScoreIndx), *readyLs->getInstIdAtIndex(fpIndx), dev_readyLs->getReadyListSize());
-  // #endif
   #ifdef __CUDA_ARCH__
     if (couldAvoidStalling && *dev_readyLs->getInstReadyOnAtIndex(indx) > dev_crntCycleNum_[GLOBALTID])
       unnecessarilyStalling = true;
     else
       unnecessarilyStalling = false;
-    
-    // if (GLOBALTID==0)
-    //   printf("UseMax: %s, instNum: %d, unnecessarilyStalling: %s\n", UseMax ? "true" : "false", *dev_readyLs->getInstIdAtIndex(indx), unnecessarilyStalling ? "true" : "false");
-  #else
+    #else
     if (couldAvoidStalling && *readyLs->getInstReadyOnAtIndex(indx) > crntCycleNum_)
       unnecessarilyStalling = true;
     else
       unnecessarilyStalling = false;
-    // printf("UseMax: %s, instNum: %d, unnecessarilyStalling: %s\n", UseMax ? "true" : "false", *readyLs->getInstIdAtIndex(indx), unnecessarilyStalling ? "true" : "false");
   #endif
   return indx;
 }
@@ -1008,26 +998,18 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
     for (int i = blockIdx.x * NUMTHREADSPERBLOCK;
          i < ((blockIdx.x + 1) * NUMTHREADSPERBLOCK); i++) {
       // if sched is within 10% of rp cost and sched length, use it to update pheromone table
-      // if (GLOBALTID==0)
-      //   printf("test RP: %d, best RP: %d, test length: %d, best length: %d, ", dev_schedules[i]->GetNormSpillCost(), dev_bestSched->GetNormSpillCost(), dev_schedules[i]->GetExecCost(), dev_bestSched->GetExecCost());
       if (dev_schedules[i]->GetNormSpillCost() <= dev_bestSched->GetNormSpillCost() &&
          (!IsSecondPass || dev_schedules[i]->GetExecCost() <= dev_bestSched->GetExecCost())) {
         dev_AcoSchdulr->UpdatePheromone(dev_schedules[i], false);
         atomicAdd(&dev_schedsUsed, 1);
       }
       else {
-        dev_AcoSchdulr->UpdatePheromone(dev_schedules[i], false);
         atomicAdd(&dev_schedsFound, 1);
       }
     }
 #endif
     threadGroup.sync();
-    // if (GLOBALTID==0)
-    //   dev_AcoSchdulr->PrintPheromone();
-    threadGroup.sync();
     dev_AcoSchdulr->ScalePheromoneTable();
-    // if (GLOBALTID==0)
-    //   dev_AcoSchdulr->PrintPheromone();
     // wait for other blocks to finish before starting next iteration
     threadGroup.sync();
     // make sure no threads reset schedule before above operations complete
@@ -1366,12 +1348,7 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule, bool isIterationBest)
     lastInstNum = schedule->GetPrevInstNum(instNum);
     // Get corresponding pheromone and update it
     pheromone = &Pheromone(lastInstNum, instNum);
-    // if (GLOBALTID==8)
-    //   printf("before inst: %d, pher: %f\n", instNum, *pheromone);
     atomicAdd(pheromone, deposition);
-    // *pheromone = *pheromone + deposition;
-    // if (GLOBALTID==8)
-    //   printf("after inst: %d, pher: %f\n", instNum, Pheromone(lastInstNum, instNum));
 #if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
     // parallel on global level
     // Increase instNum by NUMTHREADS until over count_
@@ -1454,12 +1431,9 @@ void ACOScheduler::ScalePheromoneTable() {
     instNum += numThreads_;
   }
   // adjust pheromone table by scaling factor
-  pheromone_t scalingFactor = (double) (count_ * count_ * 4.5)/dev_totalPherInTable;
+  // pheromone_t scalingFactor = (double) (count_ * count_ * 4.5)/dev_totalPherInTable;
   pheromone_t scalingAdjustment = 4.5 - dev_totalPherInTable / (count_ * count_);
   instNum = GLOBALTID;
-  // if (GLOBALTID==0)
-    // printf("total pher: %f, scaling: %f\n", dev_totalPherInTable, scalingFactor);
-    // printf("total pher: %f, scaling adjustment: %f\n", dev_totalPherInTable, scalingAdjustment);
   while (instNum < count_) {
     // restrict pheromone for all trails leading to instNum
     // to be within range
@@ -1477,25 +1451,28 @@ void ACOScheduler::ScalePheromoneTable() {
 
 #else // host version of function
 
-  pheromone_t *pheromone, totalPherInTable;
+  pheromone_t *pheromone;
+  pheromone_t totalPherInTable;
   totalPherInTable = 0;
   // clamp pheromone to range
   for (int i = 0; i < count_; i++) {
     for (int j = 0; j < count_; j++) {
       pheromone = &Pheromone(i, j);
+      *pheromone *= (1 - decay_factor);
       *pheromone = fmax(1, fmin(8, *pheromone));
       totalPherInTable += *pheromone;
     }
   }
 
   // pheromone_t scalingFactor = (double) (count_ * count_ * 4.5)/totalPherInTable;
-  // for (int i = 0; i < count_; i++) {
-  //   for (int j = 0; j < count_; j++) {
-  //     pheromone = &Pheromone(i, j);
-  //     *pheromone = *pheromone * scalingFactor;
-  //     *pheromone = fmax(1, fmin(8, *pheromone));
-  //   }
-  // }
+  pheromone_t scalingAdjustment = 4.5 - totalPherInTable / (count_ * count_);
+  for (int i = 0; i < count_; i++) {
+    for (int j = 0; j < count_; j++) {
+      pheromone = &Pheromone(i, j);
+      *pheromone = *pheromone + scalingAdjustment;
+      *pheromone = fmax(1, fmin(8, *pheromone));
+    }
+  }
   if (print_aco_trace)
     PrintPheromone();
 #endif
