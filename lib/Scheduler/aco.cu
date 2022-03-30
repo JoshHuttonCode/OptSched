@@ -466,11 +466,6 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
     for (size_t i = 0; i < dev_readyLs->getReadyListSize(); ++i) {
       point -= *dev_readyLs->getInstScoreAtIndex(i);
       if (point <= 0) {
-        if (couldAvoidStalling && *dev_readyLs->getInstReadyOnAtIndex(i) > dev_crntCycleNum_[GLOBALTID]) {
-          unnecessarilyStalling = true;
-        }
-        else
-          unnecessarilyStalling = false;
         fpIndx = i;
         break;
       }
@@ -480,11 +475,6 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
     for (size_t i = 0; i < readyLs->getReadyListSize(); ++i) {
       point -= *readyLs->getInstScoreAtIndex(i);
       if (point <= 0) {
-        if (couldAvoidStalling && *readyLs->getInstReadyOnAtIndex(i) > crntCycleNum_) {
-          unnecessarilyStalling = true;
-        }
-        else
-          unnecessarilyStalling = false;
         fpIndx = i;
         break;
       }
