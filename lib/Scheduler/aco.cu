@@ -248,6 +248,16 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
     SchedInstruction *candidateInst = dataDepGraph_->GetInstByIndx(CandidateId);
     HeurType candidateLUC = candidateInst->GetLastUseCnt();
     int16_t candidateDefs = candidateInst->GetDefCnt();
+
+    // compute the score
+    HeurType Heur = *dev_readyLs->getInstHeuristicAtIndex(I);
+    pheromone_t IScore = Score(lastInstId, *dev_readyLs->getInstIdAtIndex(I), Heur);
+    if (!onlyRPNegative && candidateDefs > candidateLUC)
+      IScore = IScore * 9/10;
+
+    *dev_readyLs->getInstScoreAtIndex(I) = IScore;
+    dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
+
     if (currentlyWaiting) {
       // if currently waiting on an instruction, do not consider semi-ready instructions 
       if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID])
@@ -258,14 +268,6 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
         continue;
     }
     
-    // compute the score
-    HeurType Heur = *dev_readyLs->getInstHeuristicAtIndex(I);
-    pheromone_t IScore = Score(lastInstId, *dev_readyLs->getInstIdAtIndex(I), Heur);
-    if (!onlyRPNegative && candidateDefs > candidateLUC)
-      IScore = IScore * 9/10;
-
-    *dev_readyLs->getInstScoreAtIndex(I) = IScore;
-    dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
     // add a score penalty for instructions that are not ready yet
     // unnecessary stalls should not be considered if current RP is low, or if we already have too many stalls
     if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
@@ -462,9 +464,6 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
   #ifdef __CUDA_ARCH__
     size_t fpIndx=0;
     for (size_t i = 0; i < dev_readyLs->getReadyListSize(); ++i) {
-      // if we are avoiding unnecessary stalls, skip over instructions that are not latency ready
-      // if (couldAvoidStalling && avoidStalling && *dev_readyLs->getInstReadyOnAtIndex(i))
-      //   continue;
       point -= *dev_readyLs->getInstScoreAtIndex(i);
       if (point <= 0) {
         if (couldAvoidStalling && *dev_readyLs->getInstReadyOnAtIndex(i) > dev_crntCycleNum_[GLOBALTID]) {
@@ -479,9 +478,6 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
   #else
     size_t fpIndx=0;
     for (size_t i = 0; i < readyLs->getReadyListSize(); ++i) {
-      // if we are avoiding unnecessary stalls, skip over instructions that are not latency ready
-      // if (couldAvoidStalling && avoidStalling && *readyLs->getInstReadyOnAtIndex(i))
-      //   continue;
       point -= *readyLs->getInstScoreAtIndex(i);
       if (point <= 0) {
         if (couldAvoidStalling && *readyLs->getInstReadyOnAtIndex(i) > crntCycleNum_) {
