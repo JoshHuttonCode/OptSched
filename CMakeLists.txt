@@ -6,6 +6,8 @@ set(OPTSCHED_EXTRA_LINK_LIBRARIES "" CACHE STRING "Extra link_libraries to pass 
 # '-DOPTSCHED_EXTRA_DEFINITIONS=-DIS_DEBUG_DEFS_AND_USES;-DIS_DEBUG_DEF_USE_COUNT'
 set(OPTSCHED_EXTRA_DEFINITIONS "" CACHE STRING "Extra add_definitions to pass to OptSched, ;-separated")
 
+set(llvm_subproject TRUE)
+
 # Exit if attempting to build as a standalone project.
 get_directory_property(hasParent PARENT_DIRECTORY)
 if(NOT hasParent)
@@ -56,7 +58,7 @@ set(OPT_SCHED_SRCS Scheduler/aco.cpp
   Wrapper/OptSchedDDGWrapperBasic.cpp
   Wrapper/OptSchedGenericTarget.cpp)
 
-set(OPT_SCHED_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(OPT_SCHED_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 set(OPT_SCHED_TARGET_DEPS "LLVMCodeGen")
 
 function(check_if_AMDGPU_supported)
@@ -80,9 +82,12 @@ if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
                                           Wrapper/AMDGPU/OptSchedDDGWrapperGCN.cpp)
     set(OPT_SCHED_INCLUDE_DIRS ${OPT_SCHED_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/lib
                                 ${LLVM_MAIN_SRC_DIR}/lib/Target/AMDGPU
-                                ${LLVM_BINARY_DIR}/lib/Target/AMDGPU)
+                                ${LLVM_BINARY_DIR}/lib/Target/AMDGPU
+				${CMAKE_CURRENT_BINARY_DIR}/../../lib/Target/AMDGPU
+                                ${CMAKE_CURRENT_BINARY_DIR}/..)
   endif()
 endif()
+list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}" ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 include_directories(${OPT_SCHED_INCLUDE_DIRS})
 add_definitions(${OPTSCHED_EXTRA_DEFINITIONS})

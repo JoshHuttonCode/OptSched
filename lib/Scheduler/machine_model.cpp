@@ -101,9 +101,12 @@ InstType MachineModel::GetInstTypeByName(const string &typeName,
 }
 
 int16_t MachineModel::GetRegTypeByName(const char *const regTypeName) const {
+  std::string mapVal;
+  if (regTypeName == "SReg_32") mapVal = "SGPR32";
+  if (regTypeName == "VGPR_32") mapVal = "VGPR32";
   int16_t Type = INVALID_VALUE;
   for (size_t i = 0; i < registerTypes_.size(); i++) {
-    if (regTypeName == registerTypes_[i].name) {
+    if (regTypeName == registerTypes_[i].name || mapVal.data() == registerTypes_[i].name) {
       Type = (int16_t)i;
       break;
     }

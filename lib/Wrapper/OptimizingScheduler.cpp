@@ -31,11 +31,14 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
 #include <algorithm>
 #include <chrono>
 #include <string>
 
 #define DEBUG_TYPE "optsched"
+
+#define PRINT_MIR
 
 using namespace llvm::opt_sched;
 
@@ -64,22 +67,6 @@ static constexpr const char *DEFAULT_CFGHF_FNAME = "/hotfuncs.ini";
 // Default path to the machine model specification file for opt-sched.
 static constexpr const char *DEFAULT_CFGMM_FNAME = "/machine_model.cfg";
 
-// Create OptSched ScheduleDAG.
-static ScheduleDAGInstrs *createOptSched(MachineSchedContext *C) {
-  ScheduleDAGMILive *DAG =
-      new ScheduleDAGOptSched(C, llvm::make_unique<GenericScheduler>(C));
-  DAG->addMutation(createCopyConstrainDAGMutation(DAG->TII, DAG->TRI));
-  // README: if you need the x86 mutations uncomment the next line.
-  // addMutation(createX86MacroFusionDAGMutation());
-  // You also need to add the next line somewhere above this function
-  //#include "../../../../../llvm/lib/Target/X86/X86MacroFusion.h"
-  return DAG;
-}
-
-// Register the machine scheduler.
-static MachineSchedRegistry OptSchedMIRegistry("optsched",
-                                               "Use the OptSched scheduler.",
-                                               createOptSched);
 
 // Command line options for opt-sched.
 static cl::opt<std::string> OptSchedCfg(
@@ -106,6 +93,16 @@ static void getRealCfgPathCL(SmallString<128> &Path) {
   auto EC = sys::fs::real_path(Tmp, Path, true);
   if (EC)
     llvm::report_fatal_error(EC.message() + ": " + Tmp, false);
+}
+
+void ScheduleDAGOptSched::ResetFlags(SUnit &SU) {
+ // if (SU) {
+    RegisterOperands RegOpers;
+    RegOpers.collect(*SU.getInstr(), *TRI, MRI, true, false);
+    // Adjust liveness and add missing dead+read-undef flags.
+    auto SlotIdx = LIS->getInstructionIndex(*SU.getInstr()).getRegSlot();
+    RegOpers.adjustLaneLiveness(*LIS, MRI, SlotIdx, SU.getInstr());
+ // }
 }
 
 static void reportCfgDirPathError(std::error_code EC,
@@ -177,7 +174,7 @@ static SchedulerType parseListSchedType() {
 
 static std::unique_ptr<GraphTrans>
 createStaticNodeSupTrans(DataDepGraph *DataDepGraph, bool IsMultiPass = false) {
-  return llvm::make_unique<StaticNodeSupTrans>(DataDepGraph, IsMultiPass);
+  return std::make_unique<StaticNodeSupTrans>(DataDepGraph, IsMultiPass);
 }
 
 void ScheduleDAGOptSched::addGraphTransformations(
@@ -285,6 +282,14 @@ void ScheduleDAGOptSched::schedule() {
     ScheduleDAGMILive::schedule();
     return;
   }
+
+#ifdef PRINT_MIR
+  else {
+    print = true;
+    Logger::Info("MIR Before Scheduling");
+    C->MF->print(errs());
+  }
+#endif
 
   // This log output is parsed by scripts. Don't change its format unless you
   // are prepared to change the relevant scripts as well.
@@ -408,7 +413,7 @@ void ScheduleDAGOptSched::schedule() {
   addGraphTransformations(BDDG);
 
   // create region
-  auto region = llvm::make_unique<BBWithSpill>(
+  auto region = std::make_unique<BBWithSpill>(
       OST.get(), static_cast<DataDepGraph *>(DDG.get()), 0, HistTableHashBits,
       LowerBoundAlgorithm, HeuristicPriorities, EnumPriorities, VerifySchedule,
       PruningStrategy, SchedForRPOnly, EnumStalls, SCW, SCF, HeurSchedType);
@@ -464,8 +469,12 @@ void ScheduleDAGOptSched::schedule() {
 
   LLVM_DEBUG(Logger::Info("OptSched succeeded."));
   OST->finalizeRegion(Sched);
-  if (!OST->shouldKeepSchedule())
-    return;
+  if (!OST->shouldKeepSchedule()) {
+    for (size_t i = 0; i < SUnits.size(); i++) {
+      SUnit SU = SUnits[i];
+      ResetFlags(SU);
+    }
+  }
 
   // Count simulated spills.
   if (isSimRegAllocEnabled()) {
@@ -493,6 +502,11 @@ void ScheduleDAGOptSched::schedule() {
   }
   placeDebugValues();
 
+#ifdef PRINT_MIR
+  Logger::Info("MIR After Scheduling");
+  if (print) MF.print(errs());
+#endif
+
 #ifdef IS_DEBUG_PEAK_PRESSURE
   Logger::Info("Register pressure after");
   RPTracker.dump();
@@ -506,9 +520,13 @@ void ScheduleDAGOptSched::ScheduleNode(SUnit *SU, unsigned CurCycle) {
   if (SU) {
     MachineInstr *instr = SU->getInstr();
     // Reset read - undef flags and update them later.
-    for (auto &Op : instr->operands())
-      if (Op.isReg() && Op.isDef())
-        Op.setIsUndef(false);
+
+
+    for (MIBundleOperands MIO(*instr); MIO.isValid(); ++MIO) {
+      //MachineOperand *Op = MIO;
+      if (MIO->isReg() && MIO->isDef())
+        MIO->setIsUndef(false);
+    }
 
     if (&*CurrentTop == instr)
       CurrentTop = nextIfDebug(++CurrentTop, CurrentBottom);
@@ -620,7 +638,7 @@ bool ScheduleDAGOptSched::isOptSchedEnabled() const {
     return true;
   } else if (optSchedOption == "HOT_ONLY") {
     // get the name of the function this scheduler was created for
-    std::string functionName = C->MF->getFunction().getName();
+    std::string functionName = C->MF->getFunction().getName().data();
     // check the list of hot functions for the name of the current function
     return HotFunctions.GetBool(functionName, false);
   } else if (optSchedOption == "NO") {
@@ -729,7 +747,7 @@ bool ScheduleDAGOptSched::shouldPrintSpills() const {
   } else if (printSpills == "NO") {
     return false;
   } else if (printSpills == "HOT_ONLY") {
-    std::string functionName = C->MF->getFunction().getName();
+    std::string functionName = C->MF->getFunction().getName().data();
     return HotFunctions.GetBool(functionName, false);
   }
 
@@ -925,9 +943,9 @@ printMaskPairs(const SmallVectorImpl<RegisterMaskPair> &RegPairs,
     for (const auto &P : RegPairs) {
       const TargetRegisterClass *RegClass;
 
-      if (TRI->isPhysicalRegister(P.RegUnit))
+      if (P.RegUnit.isPhysicalRegister(P.RegUnit))
         RegClass = TRI->getMinimalPhysRegClass(P.RegUnit);
-      else if (TRI->isVirtualRegister(P.RegUnit))
+      else if (P.RegUnit.isVirtualRegister(P.RegUnit))
         RegClass = MRI.getRegClass(P.RegUnit);
       else
         RegClass = nullptr;

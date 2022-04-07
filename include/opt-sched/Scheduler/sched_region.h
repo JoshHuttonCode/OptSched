@@ -17,6 +17,7 @@ Last Update:  Jan. 2020
 #include "opt-sched/Scheduler/data_dep.h"
 // For Enumerator, LengthCostEnumerator, EnumTreeNode and Pruning.
 #include "opt-sched/Scheduler/enumerator.h"
+#include "llvm/CodeGen/MachineFunction.h"
 
 namespace llvm {
 namespace opt_sched {

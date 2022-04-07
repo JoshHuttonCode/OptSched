@@ -221,6 +221,8 @@ protected:
   // Create and add OptSched DDG mutations.
   void addGraphTransformations(OptSchedDDGWrapperBasic *BDDG);
 
+  void ResetFlags(SUnit &SU);
+
 public:
   ScheduleDAGOptSched(MachineSchedContext *C,
                       std::unique_ptr<MachineSchedStrategy> S);

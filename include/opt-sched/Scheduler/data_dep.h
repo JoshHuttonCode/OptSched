@@ -14,6 +14,8 @@ Last Update:  Mar. 2011
 #include "opt-sched/Scheduler/defines.h"
 #include "opt-sched/Scheduler/sched_basic_data.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/Support/raw_ostream.h"
 #include <memory>
 
 namespace llvm {

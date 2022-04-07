@@ -66,14 +66,14 @@ class OptSchedGCNTarget : public OptSchedTarget {
 public:
   std::unique_ptr<OptSchedMachineModel>
   createMachineModel(const char *ConfigPath) override {
-    return llvm::make_unique<OptSchedMachineModel>(ConfigPath);
+    return std::make_unique<OptSchedMachineModel>(ConfigPath);
   }
 
   std::unique_ptr<OptSchedDDGWrapperBase>
   createDDGWrapper(llvm::MachineSchedContext *Context, ScheduleDAGOptSched *DAG,
                    OptSchedMachineModel *MM, LATENCY_PRECISION LatencyPrecision,
                    const std::string &RegionID) override {
-    return llvm::make_unique<OptSchedDDGWrapperGCN>(Context, DAG, MM,
+    return std::make_unique<OptSchedDDGWrapperGCN>(Context, DAG, MM,
                                                     LatencyPrecision, RegionID);
   }
 
@@ -113,7 +113,7 @@ private:
 };
 
 std::unique_ptr<OptSchedTarget> createOptSchedGCNTarget() {
-  return llvm::make_unique<OptSchedGCNTarget>();
+  return std::make_unique<OptSchedGCNTarget>();
 }
 
 } // end anonymous namespace
@@ -157,7 +157,7 @@ void OptSchedGCNTarget::initRegion(llvm::ScheduleDAGInstrs *DAG_,
   RPTracker.advance(DAG->begin(), DAG->end(), nullptr);
   const GCNRegPressure &P = RPTracker.moveMaxPressure();
   RegionStartingOccupancy =
-      getAdjustedOccupancy(ST, P.getVGPRNum(), P.getSGPRNum(), MaxOccLDS);
+      getAdjustedOccupancy(ST, P.getVGPRNum(ST->hasGFX90AInsts()), P.getSGPRNum(), MaxOccLDS);
   TargetOccupancy =
       shouldLimitWaves() ? MFI->getMinAllowedOccupancy() : MFI->getOccupancy();
 

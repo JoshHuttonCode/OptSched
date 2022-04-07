@@ -199,7 +199,7 @@ static InstCount ComputeSLILStaticLowerBound(int64_t regTypeCnt_,
     // between the recursive successor list of this instruction and the
     // recursive predecessors of the dependent instruction.
     auto recSuccBV = inst->GetRcrsvNghbrBitVector(DIR_FRWRD);
-    for (Register *def : inst->GetDefs()) {
+    for (llvm::opt_sched::Register *def : inst->GetDefs()) {
       for (const auto &dependentInst : def->GetUseList()) {
         auto recPredBV = const_cast<SchedInstruction *>(dependentInst)
                              ->GetRcrsvNghbrBitVector(DIR_BKWRD);
@@ -225,14 +225,14 @@ static InstCount ComputeSLILStaticLowerBound(int64_t regTypeCnt_,
   // based on the instructions that use more than one register (defined by
   // different instructions).
   int commonUseLowerBound = closureLowerBound;
-  std::vector<std::pair<const SchedInstruction *, Register *>> usedInsts;
+  std::vector<std::pair<const SchedInstruction *, llvm::opt_sched::Register *>> usedInsts;
   for (int i = 0; i < dataDepGraph_->GetInstCnt(); ++i) {
     const auto &inst = dataDepGraph_->GetInstByIndx(i);
 
     // Get a list of instructions that define the registers, in array form.
     usedInsts.clear();
     llvm::transform(inst->GetUses(), std::back_inserter(usedInsts),
-                    [&](Register *reg) {
+                    [&](llvm::opt_sched::Register *reg) {
                       assert(reg->GetDefList().size() == 1 &&
                              "Number of defs for register is not 1!");
                       return std::make_pair(*(reg->GetDefList().begin()), reg);

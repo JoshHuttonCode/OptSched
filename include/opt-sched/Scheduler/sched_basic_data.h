@@ -13,6 +13,8 @@ Last Update:  Sept. 2013
 #include "opt-sched/Scheduler/hash_table.h"
 #include "opt-sched/Scheduler/machine_model.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/Support/raw_ostream.h"
 #include <string>
 
 namespace llvm {
@@ -430,8 +432,11 @@ public:
   InstType GetCrtclPathFrmRoot() { return crtclPathFrmRoot_; }
 
   friend class SchedRange;
+  void setMF(MachineFunction *MF) {MF_ = MF;}
+  void printMF() {MF_->print(errs());}
 
 protected:
+  MachineFunction *MF_;
   // The "name" of this instruction. Usually a string indicating its type.
   string name_;
   // The mnemonic of this instruction, e.g. "add" or "jmp".

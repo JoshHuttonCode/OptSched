@@ -35,7 +35,7 @@ using namespace llvm;
 using namespace llvm::opt_sched;
 
 #ifndef NDEBUG
-static Printable printOptSchedReg(const Register *Reg,
+static Printable printOptSchedReg(const llvm::opt_sched::Register *Reg,
                                   const std::string &RegTypeName,
                                   int16_t RegTypeNum);
 #endif
@@ -325,7 +325,7 @@ OptSchedDDGWrapperBasic::getRegisterType(unsigned RegUnit) const {
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-static Printable printOptSchedReg(const Register *Reg,
+static Printable printOptSchedReg(const llvm::opt_sched::Register *Reg,
                                   const std::string &RegTypeName,
                                   int16_t RegTypeNum) {
   return Printable([Reg, &RegTypeName, RegTypeNum](raw_ostream &OS) {
@@ -448,7 +448,7 @@ void OptSchedDDGWrapperBasic::convertEdges(const SUnit &SU,
 
     int16_t Latency;
     if (ltncyPrcsn_ == LTP_PRECISE) { // get latency from the machine model
-      const auto &InstName = DAG->TII->getName(instr->getOpcode());
+      const auto &InstName = DAG->TII->getName(instr->getOpcode()).data();
       const auto &InstType = MM->GetInstTypeByName(InstName);
       Latency = MM->GetLatency(InstType, DepType);
     } else if (ltncyPrcsn_ == LTP_ROUGH) // rough latency = llvm latency
@@ -468,7 +468,7 @@ void OptSchedDDGWrapperBasic::convertSUnit(const SUnit &SU) {
     return;
 
   const MachineInstr *MI = SU.getInstr();
-  InstName = DAG->TII->getName(MI->getOpcode());
+  InstName = DAG->TII->getName(MI->getOpcode()).data();
 
   // Search in the machine model for an instType with this OpCode name
   InstType = MM->GetInstTypeByName(InstName.c_str());
