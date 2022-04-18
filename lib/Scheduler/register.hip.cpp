@@ -439,7 +439,7 @@ void RegisterFile::CopyPointersToDevice(RegisterFile *dev_regFile) {
     //copy register to device
     gpuErrchk(hipMemcpy(dev_reg, Regs[i], sizeof(Register), 
 			 hipMemcpyHostToDevice));
-    Regs[i]->CopyPointersToDevice(dev_reg);
+    // Regs[i]->CopyPointersToDevice(dev_reg);
     //update dev_regs pointer
     gpuErrchk(hipMemcpy(&dev_regs[i], &dev_reg, sizeof(Register *), 
 			 hipMemcpyHostToDevice));
@@ -452,7 +452,7 @@ void RegisterFile::CopyPointersToDevice(RegisterFile *dev_regFile) {
 
 void RegisterFile::FreeDevicePointers() {
   for (int i = 0; i < getCount(); i++) {
-    Regs[i]->FreeDevicePointers();
+    // Regs[i]->FreeDevicePointers();
     hipFree(Regs[i]);
   }
   hipFree(Regs);

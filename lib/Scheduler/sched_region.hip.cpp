@@ -977,15 +977,15 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     // Allocate and Copy data to device for parallel ACO
     size_t memSize;
     // Allocate arrays for parallel ACO execution
-    for (int i = 0; i < dataDepGraph_->GetInstCnt(); i++) {
-      dataDepGraph_->GetInstByIndx(i)->AllocDevArraysForParallelACO(NUMTHREADS);
-    }
+    // for (int i = 0; i < dataDepGraph_->GetInstCnt(); i++) {
+    //   dataDepGraph_->GetInstByIndx(i)->AllocDevArraysForParallelACO(NUMTHREADS);
+    // }
     RegisterFile *regFiles = dataDepGraph_->getRegFiles();
-    for (int i = 0; i < dataDepGraph_->GetRegTypeCnt(); i++) {
-      for (int j = 0; j < regFiles[i].GetRegCnt(); j++)
-        regFiles[i].GetReg(j)->AllocDevArrayForParallelACO(NUMTHREADS);
-    }
-    ((BBWithSpill*)this)->AllocDevArraysForParallelACO(NUMTHREADS);
+    // for (int i = 0; i < dataDepGraph_->GetRegTypeCnt(); i++) {
+    //   for (int j = 0; j < regFiles[i].GetRegCnt(); j++)
+    //     regFiles[i].GetReg(j)->AllocDevArrayForParallelACO(NUMTHREADS);
+    // }
+    // ((BBWithSpill*)this)->AllocDevArraysForParallelACO(NUMTHREADS);
     // Copy DDG and its objects to device
     Logger::Info("Copying DDG and its Instruction to device");
     DataDepGraph *dev_DDG;
@@ -1003,7 +1003,7 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     // Copy this to device
     gpuErrchk(hipMemcpy(dev_rgn, this, memSize, hipMemcpyHostToDevice));
     dev_rgn->machMdl_ = dev_machMdl_;
-    CopyPointersToDevice(dev_rgn, NUMTHREADS);
+    // CopyPointersToDevice(dev_rgn, NUMTHREADS);
     // Allocate dev_states for hiprand RNG and run hiprand_init() to initialize
     hiprandState_t *dev_states;
     memSize = sizeof(hiprandState_t) * NUMTHREADS;
@@ -1017,14 +1017,14 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
         dev_machMdl_, dev_states);
     AcoSchdulr->setInitialSched(InitSched);
     // Alloc dev arrays for parallel ACO
-    AcoSchdulr->AllocDevArraysForParallelACO();
+    // AcoSchdulr->AllocDevArraysForParallelACO();
     // Copy ACOScheduler to device
     ACOScheduler *dev_AcoSchdulr;
     memSize = sizeof(ACOScheduler);
     gpuErrchk(hipMallocManaged(&dev_AcoSchdulr, memSize));
     gpuErrchk(hipMemcpy(dev_AcoSchdulr, AcoSchdulr, memSize,
                          hipMemcpyHostToDevice));
-    AcoSchdulr->CopyPointersToDevice(dev_AcoSchdulr);
+    // AcoSchdulr->CopyPointersToDevice(dev_AcoSchdulr);
     // Make sure mallocManaged memory is copied to device before kernel start
     memSize = sizeof(DataDepGraph);
     gpuErrchk(hipMemPrefetchAsync(dev_DDG, memSize, 0));
@@ -1037,9 +1037,9 @@ FUNC_RESULT SchedRegion::runACO(InstSchedule *ReturnSched,
     dev_AcoSchdulr->FreeDevicePointers();
     hipFree(dev_AcoSchdulr);
     delete AcoSchdulr;
-    dev_rgn->FreeDevicePointers(NUMTHREADS);
+    // dev_rgn->FreeDevicePointers(NUMTHREADS);
     hipFree(dev_rgn);
-    dev_DDG->FreeDevicePointers(NUMTHREADS);
+    // dev_DDG->FreeDevicePointers(NUMTHREADS);
     hipFree(dev_DDG);
     hipFree(dev_states);
     // For some reason crashed OptSched to have this in the destructor

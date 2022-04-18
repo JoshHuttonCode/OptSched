@@ -852,8 +852,9 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
             ACOScheduler *dev_AcoSchdulr, InstSchedule **dev_schedules,
             InstSchedule *dev_bestSched, int noImprovementMax, 
             int *blockBestIndex) {
+  printf("test printf\n");
   // holds cost and index of bestSched per block
-  __shared__ int bestIndex, dev_iterations;
+  /*__shared__ int bestIndex, dev_iterations;
   __shared__ bool needsSLIL;
   needsSLIL = ((BBWithSpill *)dev_rgn)->needsSLIL();
   bool IsSecondPass = dev_rgn->IsSecondPass();
@@ -981,7 +982,7 @@ void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
   if (GLOBALTID == 0) {
     printf("ACO finished after %d iterations\n", dev_iterations);
     printf("%d ants terminated early\n", dev_AcoSchdulr->GetNumAntsTerminated());
-  }
+  }*/
 }
 
 FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
@@ -1073,8 +1074,8 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
       host_schedules[i] = new InstSchedule(machMdl_, dataDepGraph_, true);
       // Pass a dev array to the schedule to be divided up between the required
       // dev arrays for InstSchedule
-      host_schedules[i]->SetDevArrayPointers(dev_MM_, 
-                                             &dev_temp[i*sizePerSched]);
+      // host_schedules[i]->SetDevArrayPointers(dev_MM_, 
+      //                                        &dev_temp[i*sizePerSched]);
       // Copy to temp_schedules array to later copy to device with 1 hipMemcpy
       memcpy(&temp_schedules[i], host_schedules[i], memSize);
     }
@@ -1140,7 +1141,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
                          hipMemcpyDeviceToHost));
     bestSchedule->CopyArraysToHost();
     // Free allocated memory that is no longer needed
-    bestSchedule->FreeDeviceArrays();
+    // bestSchedule->FreeDeviceArrays();
     hipFree(dev_bestSched);
     for (int i = 0; i < NUMTHREADS; i++) {
       delete host_schedules[i];
@@ -1492,7 +1493,7 @@ void ACOScheduler::AllocDevArraysForParallelACO() {
   gpuErrchk(hipMalloc(&dev_isCrntCycleBlkd_, memSize));
   
   // Alloc dev array for readyLs;
-  readyLs->AllocDevArraysForParallelACO(NUMTHREADS);
+  // readyLs->AllocDevArraysForParallelACO(NUMTHREADS);
   // Alloc dev arrays for MaxScoringInst
   memSize = sizeof(InstCount) * NUMTHREADS;
   gpuErrchk(hipMalloc(&dev_MaxScoringInst, memSize));
@@ -1584,7 +1585,7 @@ void ACOScheduler::FreeDevicePointers() {
     hipFree(dev_rsrvSlots_[i]);
   }
   hipFree(dev_MaxScoringInst);
-  readyLs->FreeDevicePointers();
+  // readyLs->FreeDevicePointers();
   hipFree(dev_avlblSlotsInCrntCycle_);
   hipFree(dev_rsrvSlots_);
   hipFree(dev_rsrvSlotCnt_);

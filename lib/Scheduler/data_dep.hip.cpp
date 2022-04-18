@@ -3698,8 +3698,8 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
   gpuErrchk(hipMemcpy(&dev_DDG->RegFiles, &dev_regFiles, 
 		       sizeof(RegisterFile *), hipMemcpyHostToDevice));
   // Also copy each RegFile's pointers
-  for (InstCount i = 0; i < machMdl_->GetRegTypeCnt(); i++)
-    RegFiles[i].CopyPointersToDevice(&dev_DDG->RegFiles[i]);
+  // for (InstCount i = 0; i < machMdl_->GetRegTypeCnt(); i++)
+  //   RegFiles[i].CopyPointersToDevice(&dev_DDG->RegFiles[i]);
   // Collect all GraphEdges into one host array, copy it to device
   Logger::Info("Copying all edges to device");
   // First sort the vector of edges to allow for a binary search
@@ -3734,12 +3734,12 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
   int scsrIndex = 0;
   // Copy SchedInstruction/GraphNode pointers and link them to device inst
   // and update RegFiles pointer to dev_regFiles
-  for (InstCount i = 0; i < instCnt_; i++)
-    insts_[i].CopyPointersToDevice(&dev_DDG->insts_[i], dev_DDG->nodes_, 
-		                   instCnt_, dev_regFiles, numThreads,
-                                   edges_, dev_edges_,
-                                   dev_scsrElmnts_,
-                                   dev_keys_, scsrIndex);
+  // for (InstCount i = 0; i < instCnt_; i++)
+  //   insts_[i].CopyPointersToDevice(&dev_DDG->insts_[i], dev_DDG->nodes_, 
+	// 	                   instCnt_, dev_regFiles, numThreads,
+  //                                  edges_, dev_edges_,
+  //                                  dev_scsrElmnts_,
+  //                                  dev_keys_, scsrIndex);
   memSize = sizeof(SchedInstruction) * instCnt_;
   gpuErrchk(hipMemPrefetchAsync(dev_insts, memSize, 0));
   memSize = sizeof(RegisterFile) * machMdl_->GetRegTypeCnt();
@@ -3756,11 +3756,11 @@ void DataDepGraph::FreeDevicePointers(int numThreads) {
   hipFree(frwrdLwrBounds_);
   hipFree(bkwrdLwrBounds_);
   hipFree(tplgclOrdr_);
-  for (InstCount i = 0; i < machMdl_->GetRegTypeCnt(); i++)
-    RegFiles[i].FreeDevicePointers();
+  // for (InstCount i = 0; i < machMdl_->GetRegTypeCnt(); i++)
+  //   RegFiles[i].FreeDevicePointers();
   hipFree(RegFiles);
-  for (InstCount i = 0; i < instCnt_; i++)
-    insts_[i].FreeDevicePointers(numThreads);
+  // for (InstCount i = 0; i < instCnt_; i++)
+  //   insts_[i].FreeDevicePointers(numThreads);
   hipFree(insts_);
   hipFree(nodes_);
   hipFree(dev_scsrElmnts_);

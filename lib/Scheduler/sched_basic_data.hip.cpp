@@ -1125,7 +1125,7 @@ void SchedInstruction::FreeDevicePointers(int numThreads) {
   if (rcrsvPrdcsrLst_)
     hipFree(rcrsvPrdcsrLst_->dev_crnt_);
   hipFree(scsrLst_->dev_crnt_);
-  GraphNode::FreeDevicePointers();
+  // GraphNode::FreeDevicePointers();
 }
 
 void SchedInstruction::AllocDevArraysForParallelACO(int numThreads) {

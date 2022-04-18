@@ -218,7 +218,7 @@ ScheduleDAGOptSched::ScheduleDAGOptSched(
 
 ScheduleDAGOptSched::~ScheduleDAGOptSched() {
   if (DEV_ACO && dev_MM) {
-    dev_MM->FreeDevicePointers();
+    // dev_MM->FreeDevicePointers();
     hipFree(dev_MM);
   }
 }
@@ -411,7 +411,7 @@ void ScheduleDAGOptSched::schedule() {
     gpuErrchk(hipMemcpy(dev_MM, MM.get(), sizeof(MachineModel),
                          hipMemcpyHostToDevice));
     // Copy over all pointers to device
-    MM.get()->CopyPointersToDevice(dev_MM);
+    // MM.get()->CopyPointersToDevice(dev_MM);
     // make sure mallocmanaged mem is copied to device before kernel start
     gpuErrchk(hipMemPrefetchAsync(dev_MM, sizeof(MachineModel), 0));
   }
