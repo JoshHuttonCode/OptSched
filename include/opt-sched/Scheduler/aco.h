@@ -103,6 +103,8 @@ public:
   void PrintPheromone();
     // Holds state for each thread for RNG
   void *dev_states_;
+  __device__
+  void ResetStalls(InstSchedule **dev_schedules);
 private:
   __host__ __device__
   pheromone_t &Pheromone(SchedInstruction *from, SchedInstruction *to);

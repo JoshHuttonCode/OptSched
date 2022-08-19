@@ -48,6 +48,11 @@ double RandDouble(double min, double max) {
 //#define DECAY_FACTOR 0.5
 //#endif
 
+__device__ int globalBestIndex, dev_noImprovement, dev_schedsUsed, dev_schedsFound, dev_RPTarget;
+__device__ bool dev_lowerBoundSchedFound;
+__device__ pheromone_t dev_totalPherInTable;
+__device__ bool isGlobalBest;
+
 ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
                            MachineModel *machineModel, InstCount upperBound,
                            SchedPriorities priorities, bool vrfySched, 
@@ -522,6 +527,8 @@ __host__ __device__
 InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget, 
                                             InstSchedule *dev_schedule) {
 #ifdef __HIP_DEVICE_COMPILE__ // device version of function
+  if (GLOBALTID == 0)
+    isGlobalBest = false;
   SchedInstruction *inst = NULL;
   SchedInstruction *lastInst = NULL;
   ACOReadyListEntry LastInstInfo;
@@ -814,8 +821,18 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
 #endif
 }
 
+__global__
+void FindOneSchedule(ACOScheduler *dev_AcoSchdulr, InstSchedule **dev_schedules) {
+  // Reset schedules to post constructor state
+  dev_schedules[GLOBALTID]->Initialize();
+  dev_AcoSchdulr->FindOneSchedule(dev_RPTarget,
+                                  dev_schedules[GLOBALTID]);
+  if (GLOBALTID == 0)
+    globalBestIndex = INVALID_VALUE;
+}
+
 // Reduce to only index of best schedule per 2 blocks in output array
-__inline__ __device__
+__global__
 void reduceToBestSchedPerBlock(InstSchedule **dev_schedules, int *blockBestIndex, ACOScheduler *dev_AcoSchdulr, InstCount RPTarget) {
   __shared__ int sdata[NUMTHREADSPERBLOCK];
   uint gtid = GLOBALTID;
@@ -833,7 +850,7 @@ void reduceToBestSchedPerBlock(InstSchedule **dev_schedules, int *blockBestIndex
   for (uint s = 1; s < hipBlockDim_x; s*=2) {
     if (tid%(2*s) == 0) {
       if (dev_AcoSchdulr->shouldReplaceSchedule(
-          dev_schedules[sdata[tid]], 
+          dev_schedules[sdata[tid]],
           dev_schedules[sdata[tid + s]], false, RPTarget))
         sdata[tid] = sdata[tid + s];
     }
@@ -848,7 +865,7 @@ void reduceToBestSchedPerBlock(InstSchedule **dev_schedules, int *blockBestIndex
 // 1 block only to allow proper synchronization
 // reduce to only one best index. At the end of this function globalBestIndex
 // should be in blockBestIndex[0]
-__inline__ __device__
+__global__
 void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex,
                        ACOScheduler *dev_AcoSchdulr, int numBlocks, InstCount RPTarget) {
   __shared__ int sBestIndex[NUMBLOCKSMANYANTS/4];
@@ -859,7 +876,7 @@ void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex,
   // If there are more than 64 schedules in blockBestIndex, some threads
   // will have to load in more than one value
   while (tid < numBlocks/4) {
-    if (dev_AcoSchdulr->shouldReplaceSchedule(dev_schedules[blockBestIndex[tid * 2]], 
+    if (dev_AcoSchdulr->shouldReplaceSchedule(dev_schedules[blockBestIndex[tid * 2]],
                                               dev_schedules[blockBestIndex[tid * 2 + 1]], false, RPTarget))
       sBestIndex[tid] = blockBestIndex[tid * 2 + 1];
     else
@@ -903,187 +920,234 @@ void reduceToBestSched(InstSchedule **dev_schedules, int *blockBestIndex,
 // select which pheromone update scheme to use
 #define PHER_UPDATE_SCHEME ONE_PER_ITER
 
-__device__ int globalBestIndex, dev_noImprovement, dev_schedsUsed, dev_schedsFound;
-__device__ pheromone_t dev_totalPherInTable;
-__device__ bool lowerBoundSchedFound, isGlobalBest;
 
 __global__
-void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
-            ACOScheduler *dev_AcoSchdulr, InstSchedule **dev_schedules,
-            InstSchedule *dev_bestSched, int noImprovementMax, 
-            int *blockBestIndex) {
+void postACOPrint(ACOScheduler *dev_AcoSchdulr) {
+  if (GLOBALTID == 0) {
+    // printf("Scheds used: %d, scheds not used: %d, \n", dev_schedsUsed, dev_schedsFound);
+    printf("%d ants terminated early\n", dev_AcoSchdulr->GetNumAntsTerminated());
+  }
+}
+
+__global__
+void ScalePheromone(ACOScheduler *dev_AcoSchdulr, InstSchedule **dev_schedules) {
+  dev_AcoSchdulr->ScalePheromoneTable();
+  dev_AcoSchdulr->ResetStalls(dev_schedules);
+}
+
+__global__
+void UpdatePheromone(InstSchedule **dev_schedules, ACOScheduler *dev_AcoSchdulr, InstSchedule *dev_bestSched) {
+  // perform pheremone update based on selected scheme
+#if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
+  if (globalBestIndex != INVALID_VALUE)
+    dev_AcoSchdulr->UpdatePheromone(dev_schedules[globalBestIndex], isGlobalBest);
+#elif (PHER_UPDATE_SCHEME == ONE_PER_BLOCK)
   // holds cost and index of bestSched per block
   __shared__ int bestIndex;
-  int dev_iterations;
-  bool needsSLIL;
-  needsSLIL = ((BBWithSpill *)dev_rgn)->needsSLIL();
-  bool needsTarget = ((BBWithSpill *)dev_rgn)->needsTarget();
-  bool IsSecondPass = dev_rgn->IsSecondPass();
-  dev_rgn->SetDepGraph(dev_DDG);
-  ((BBWithSpill *)dev_rgn)->SetRegFiles(dev_DDG->getRegFiles());
-  dev_noImprovement = 0;
-  dev_iterations = 0;
-  lowerBoundSchedFound = false;
-  isGlobalBest = false;
-  // Used to synchronize all launched threads
-  auto threadGroup = cg::this_grid();
-  // Get RPTarget
-  InstCount RPTarget;
-  dev_schedsUsed = 0;
-  dev_schedsFound = 0;
-
-  // If in second pass and not using SLIL, set RPTarget
-  if (!needsSLIL)
-    RPTarget = dev_bestSched->GetSpillCost();
-  else
-    RPTarget = INT_MAX;
-
-  // Start ACO
-  while (dev_noImprovement < noImprovementMax && !lowerBoundSchedFound) {
-    // Reset schedules to post constructor state
-    dev_schedules[GLOBALTID]->Initialize();
-    dev_AcoSchdulr->FindOneSchedule(RPTarget,
-                                    dev_schedules[GLOBALTID]);
-    // Sync threads after schedule creation
-    threadGroup.sync();
-    globalBestIndex = INVALID_VALUE;
-    // reduce dev_schedules to 1 best schedule per block
-    if (GLOBALTID < dev_AcoSchdulr->GetNumThreads()/2)
-      reduceToBestSchedPerBlock(dev_schedules, blockBestIndex, dev_AcoSchdulr, RPTarget);
-
-    threadGroup.sync();
-
-    // one block to reduce blockBest schedules to one best schedule
-    if (hipBlockIdx_x == 0)
-      reduceToBestSched(dev_schedules, blockBestIndex, dev_AcoSchdulr, dev_AcoSchdulr->GetNumBlocks(), RPTarget);
-
-    threadGroup.sync();    
-
-    if (GLOBALTID == 0 && 
-        dev_schedules[blockBestIndex[0]]->GetCost() != INVALID_VALUE)
-      globalBestIndex = blockBestIndex[0];
-
-    // 1 thread compares iteration best to overall bestsched
-    if (GLOBALTID == 0) {
-      // Compare to initialSched/current best
-      if (globalBestIndex != INVALID_VALUE &&
-          dev_AcoSchdulr->shouldReplaceSchedule(dev_bestSched, 
-                                                dev_schedules[globalBestIndex], 
-                                                true, RPTarget)) {
-        #ifdef DEBUG_0_PERP
-          InstCount NewCost = dev_schedules[globalBestIndex]->GetExecCost();
-          InstCount OldCost = dev_bestSched->GetExecCost();
-          InstCount NewSpillCost = dev_schedules[globalBestIndex]->GetNormSpillCost();
-          InstCount OldSpillCost = dev_bestSched->GetNormSpillCost();
-          if (needsSLIL && dev_bestSched->getIsZeroPerp() && NewCost < OldCost) {
-            if (NewSpillCost < OldSpillCost)
-              printf("Shorter schedule found with 0 PERP. New RP: %d, Old RP: %d\n", NewSpillCost, OldSpillCost);
-            else if ( NewSpillCost > OldSpillCost) {
-              printf("Shorter schedule found with 0 PERP. Old was better. New RP: %d, Old RP: %d\n", NewSpillCost, OldSpillCost);
-            }
-          }
-        #endif
-        dev_bestSched->Copy(dev_schedules[globalBestIndex]);
-        // update RPTarget if we are in second pass and not using SLIL
-        if (!needsSLIL)
-          RPTarget = dev_bestSched->GetSpillCost();
-        int globalStalls = dev_bestSched->getTotalStalls();
-        if (globalStalls < dev_AcoSchdulr->GetGlobalBestStalls())
-          dev_AcoSchdulr->SetGlobalBestStalls(globalStalls);
-        printf("New best sched found by thread %d\n", globalBestIndex);
-        printf("ACO found schedule "
-               "cost:%d, rp cost:%d, exec cost: %d, and "
-               "iteration:%d"
-               " (sched length: %d, abs rp cost: %d, rplb: %d)"
-               " stalls: %d, unnecessary stalls: %d\n",
-               dev_bestSched->GetCost(), dev_bestSched->GetNormSpillCost(),
-               dev_bestSched->GetExecCost(), dev_iterations,
-               dev_bestSched->GetCrntLngth(), dev_bestSched->GetSpillCost(),
-               dev_rgn->GetRPCostLwrBound(),
-               dev_bestSched->getTotalStalls(), dev_bestSched->getUnnecessaryStalls());
-#if !RUNTIME_TESTING
-          dev_noImprovement = 0;
-#else
-          // for testing compile times disable resetting dev_noImprovement to
-          // allow the same number of iterations every time
-          dev_noImprovement++;
-#endif
-        // if a schedule is found with the cost at the lower bound
-        // exit the loop after the current iteration is finished
-        if ( dev_bestSched && (!IsSecondPass && dev_bestSched->GetNormSpillCost() == 0  || ( IsSecondPass && dev_bestSched->GetExecCost() == 0 ) ) ) {
-          lowerBoundSchedFound = true;
-        } else if (!needsTarget && !IsSecondPass  && ((BBWithSpill *)dev_rgn)->ReturnPeakSpillCost() == 0) {
-          lowerBoundSchedFound = true;
-          printf("Schedule with 0 PERP was found\n");
-        }
-        isGlobalBest = true;
-      } else {
-        dev_noImprovement++;
-        if (dev_noImprovement > noImprovementMax)
-          break;
+  // each block finds its blockIterationBest
+  if (threadIdx.x == 0) {
+    bestCost = dev_schedules[GLOBALTID]->GetCost();
+    bestIndex = GLOBALTID;
+    for (int i = GLOBALTID + 1; i < GLOBALTID + NUMTHREADSPERBLOCK; i++) {
+      if (dev_schedules[i]->GetCost() < bestCost) {
+        bestCost = dev_schedules[i]->GetCost();
+        bestIndex = i;
       }
     }
-    // perform pheremone update based on selected scheme
-#if (PHER_UPDATE_SCHEME == ONE_PER_ITER)
-    // Another hard sync point after iteration best selection
-    threadGroup.sync();
-    if (globalBestIndex != INVALID_VALUE)
-      dev_AcoSchdulr->UpdatePheromone(dev_schedules[globalBestIndex], isGlobalBest);
-#elif (PHER_UPDATE_SCHEME == ONE_PER_BLOCK)
-    // each block finds its blockIterationBest
-    if (threadIdx.x == 0) {
-      auto bestCost = dev_schedules[GLOBALTID]->GetCost();
-      bestIndex = GLOBALTID;
-      for (int i = GLOBALTID + 1; i < GLOBALTID + NUMTHREADSPERBLOCK; i++) {
-        if (dev_schedules[i]->GetCost() < bestCost) {
-          bestCost = dev_schedules[i]->GetCost();
-          bestIndex = i;
-        }
-      }
-    }
-    // wait for thread 0 of each block to find blockIterationBest
-    threadGroup.sync();
-    if (bestIndex == globalBestIndex) {
+  }
+  // wait for thread 0 of each block to find blockIterationBest
+  hipDeviceSynchronize();
+  if (bestIndex == globalBestIndex) {
       dev_AcoSchdulr->UpdatePheromone(dev_schedules[bestIndex], isGlobalBest);
     }
     else {
       dev_AcoSchdulr->UpdatePheromone(dev_schedules[bestIndex], false);
     }
-
 #elif (PHER_UPDATE_SCHEME == ALL)
-    // each block loops over all schedules created by its threads and
-    // updates pheromones in block level parallel
-    for (int i = blockIdx.x * NUMTHREADSPERBLOCK;
-         i < ((blockIdx.x + 1) * NUMTHREADSPERBLOCK); i++) {
-      // if sched is within 10% of rp cost and sched length, use it to update pheromone table
-      if (dev_schedules[i]->GetNormSpillCost() <= dev_bestSched->GetNormSpillCost() &&
-         (!IsSecondPass || dev_schedules[i]->GetExecCost() <= dev_bestSched->GetExecCost())) {
-        dev_AcoSchdulr->UpdatePheromone(dev_schedules[i], false);
-        atomicAdd(&dev_schedsUsed, 1);
-      }
-      else {
-        atomicAdd(&dev_schedsFound, 1);
-      }
+  // each block loops over all schedules created by its threads and
+  // updates pheromones in block level parallel
+  for (int i = blockIdx.x * NUMTHREADSPERBLOCK;
+        i < ((blockIdx.x + 1) * NUMTHREADSPERBLOCK); i++) {
+    #ifdef DEBUG_PHER_UPDATE_ALL
+    if (GLOBALTID==0)
+      printf("test RP: %d, best RP: %d, test length: %d, best length: %d, ", dev_schedules[i]->GetNormSpillCost(), dev_bestSched->GetNormSpillCost(), dev_schedules[i]->GetExecCost(), dev_bestSched->GetExecCost());
+    #endif
+    if (dev_schedules[i]->GetNormSpillCost() <= dev_bestSched->GetNormSpillCost() &&
+        (!IsSecondPass || dev_schedules[i]->GetExecCost() <= dev_bestSched->GetExecCost())) {
+      dev_AcoSchdulr->UpdatePheromone(dev_schedules[i], false);
+      atomicAdd(&dev_schedsUsed, 1);
     }
-  #endif
-    threadGroup.sync();
-    dev_AcoSchdulr->ScalePheromoneTable();
-    // wait for other blocks to finish before starting next iteration
-    threadGroup.sync();
-    // make sure no threads reset schedule before above operations complete
-    dev_schedules[GLOBALTID]->resetTotalStalls();
-    dev_schedules[GLOBALTID]->resetUnnecessaryStalls();
-    if (GLOBALTID == 0) {
-      dev_iterations++;
-      #ifdef DEBUG_INSTR_SELECTION
-      printf("Iterations: %d\n", dev_iterations);
-      #endif
+    else {
+      dev_AcoSchdulr->UpdatePheromone(dev_schedules[i], false);
+      atomicAdd(&dev_schedsFound, 1);
     }
   }
+#endif
+  // make sure no threads reset schedule before above operations complete
+  dev_schedules[GLOBALTID]->resetTotalStalls();
+  dev_schedules[GLOBALTID]->resetUnnecessaryStalls();
+}
+
+__global__
+void selectIterationBest(ACOScheduler *dev_AcoSchdulr, InstSchedule **dev_schedules, int *blockBestIndex, InstSchedule *dev_bestSched, SchedRegion *dev_rgn, InstCount RPTarget) {
   if (GLOBALTID == 0) {
-    printf("ACO finished after %d iterations\n", dev_iterations);
-    printf("%d ants terminated early\n", dev_AcoSchdulr->GetNumAntsTerminated());
+    if (dev_schedules[blockBestIndex[0]]->GetCost() != INVALID_VALUE)
+      globalBestIndex = blockBestIndex[0];
+
+    // Compare to initialSched/current best
+    if (globalBestIndex != INVALID_VALUE &&
+        dev_AcoSchdulr->shouldReplaceSchedule(dev_bestSched,
+                                              dev_schedules[globalBestIndex],
+                                              true, RPTarget)) {
+      #ifdef DEBUG_0_PERP
+        InstCount NewCost = dev_schedules[globalBestIndex]->GetExecCost();
+        InstCount OldCost = dev_bestSched->GetExecCost();
+        InstCount NewSpillCost = dev_schedules[globalBestIndex]->GetNormSpillCost();
+        InstCount OldSpillCost = dev_bestSched->GetNormSpillCost();
+        bool needsSLIL = ((BBWithSpill *)dev_rgn)->needsSLIL();
+        if (needsSLIL && dev_bestSched->getIsZeroPerp() && NewCost < OldCost) {
+          if (NewSpillCost < OldSpillCost)
+            printf("Shorter schedule found with 0 PERP. New RP: %d, Old RP: %d\n", NewSpillCost, OldSpillCost);
+          else if ( NewSpillCost > OldSpillCost) {
+            printf("Shorter schedule found with 0 PERP. Old was better. New RP: %d, Old RP: %d\n", NewSpillCost, OldSpillCost);
+          }
+        }
+      #endif
+      dev_bestSched->Copy(dev_schedules[globalBestIndex]);
+      // update RPTarget if we are in second pass and not using SLIL
+      if (!((BBWithSpill *)dev_rgn)->needsSLIL())
+        dev_RPTarget = dev_bestSched->GetSpillCost();
+      auto globalStalls = dev_bestSched->getTotalStalls();
+      if (globalStalls < dev_AcoSchdulr->GetGlobalBestStalls())
+        dev_AcoSchdulr->SetGlobalBestStalls(globalStalls);
+      dev_AcoSchdulr->SetGlobalBestStalls(globalStalls);
+      printf("New best sched found by thread %d\n", globalBestIndex);
+      printf("ACO found schedule "
+              "cost:%d, rp cost:%d, exec cost: %d,"
+              " (sched length: %d, abs rp cost: %d, rplb: %d)"
+              " stalls: %d, unnecessary stalls: %d\n",
+              dev_bestSched->GetCost(), dev_bestSched->GetNormSpillCost(),
+              dev_bestSched->GetExecCost(),
+              dev_bestSched->GetCrntLngth(), dev_bestSched->GetSpillCost(),
+              dev_rgn->GetRPCostLwrBound(),
+              dev_bestSched->getTotalStalls(), dev_bestSched->getUnnecessaryStalls());
+#if !RUNTIME_TESTING
+        dev_noImprovement = 0;
+#else
+        // for testing compile times disable resetting dev_noImprovement to
+        // allow the same number of iterations every time
+        dev_noImprovement++;
+#endif
+      // if a schedule is found with the cost at the lower bound
+      // exit the loop after the current iteration is finished
+      bool isSecondPass = dev_rgn->IsSecondPass();
+      if ( dev_bestSched && (!isSecondPass && dev_bestSched->GetNormSpillCost() == 0  || ( isSecondPass && dev_bestSched->GetExecCost() == 0 ) ) ) {
+        dev_lowerBoundSchedFound = true;
+      } else if (!isSecondPass  && ((BBWithSpill *)dev_rgn)->ReturnPeakSpillCost() == 0) {
+        dev_lowerBoundSchedFound = true;
+        printf("Schedule with 0 PERP was found\n");
+      }
+      isGlobalBest = true;
+    } else {
+      dev_noImprovement++;
+    }
   }
+}
+
+__global__
+void InitializeACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG, InstSchedule *dev_bestSched) {
+  if (GLOBALTID == 0) {
+    // If in second pass and not using SLIL, set RPTarget
+    bool needsSLIL = ((BBWithSpill *)dev_rgn)->needsSLIL();
+    if (!needsSLIL)
+      dev_RPTarget = dev_bestSched->GetSpillCost();
+    else
+      dev_RPTarget = INT_MAX;
+    dev_noImprovement = 0;
+    dev_lowerBoundSchedFound = false;
+    dev_rgn->SetDepGraph(dev_DDG);
+    ((BBWithSpill *)dev_rgn)->SetRegFiles(dev_DDG->getRegFiles());
+  }
+}
+
+__host__
+void Dev_ACO(SchedRegion *dev_rgn, DataDepGraph *dev_DDG,
+            ACOScheduler *dev_AcoSchdulr, InstSchedule **dev_schedules,
+            InstSchedule *dev_bestSched, int noImprovementMax,
+            int *blockBestIndex, dim3 gridDim) {
+  int iterations;
+  bool IsSecondPass = dev_rgn->IsSecondPass();
+  InitializeACO<<<1, NUMTHREADSPERBLOCK>>>(dev_rgn, dev_DDG, dev_bestSched);
+  iterations = 0;
+  bool lowerBoundSchedFound = false;
+  // Get RPTarget
+  InstCount RPTarget;
+  int noImprovement = 0;
+  int *dNoImprovement;
+  bool *dLowerBoundSchedFound;
+
+  // Start ACO
+  hipDeviceSynchronize();
+  while (noImprovement < noImprovementMax && !lowerBoundSchedFound) {
+    // ALL BLOCKS DO THIS
+    FindOneSchedule<<<gridDim, NUMTHREADSPERBLOCK>>>(dev_AcoSchdulr, dev_schedules);
+    // Sync threads after schedule creation
+    hipDeviceSynchronize();
+    #ifdef DEBUG_KERNEL_ERRORS
+    Logger::Info("Post FindOneSchedule Error: %s",
+                 hipGetErrorString(hipGetLastError()));
+    #endif
+
+    // reduce dev_schedules to 1 best schedule per block
+    // HALF OF BLOCKS DO THIS
+    reduceToBestSchedPerBlock<<<gridDim.x/2, NUMTHREADSPERBLOCK>>>(dev_schedules, blockBestIndex, dev_AcoSchdulr, RPTarget);
+    hipDeviceSynchronize();
+    #ifdef DEBUG_KERNEL_ERRORS
+    Logger::Info("Post reduceToBestSchedPerBlock Error: %s",
+                 hipGetErrorString(hipGetLastError()));
+    #endif
+
+    // one block to reduce blockBest schedules to one best schedule
+    reduceToBestSched<<<1, NUMTHREADSPERBLOCK>>>(dev_schedules, blockBestIndex, dev_AcoSchdulr, dev_AcoSchdulr->GetNumBlocks(), RPTarget);
+    hipDeviceSynchronize();
+    #ifdef DEBUG_KERNEL_ERRORS
+    Logger::Info("Post reduceToBestSched Error: %s",
+                 hipGetErrorString(hipGetLastError()));
+    #endif
+
+    selectIterationBest<<<1, NUMTHREADSPERBLOCK>>>(dev_AcoSchdulr, dev_schedules, blockBestIndex, dev_bestSched, dev_rgn, RPTarget);
+    // wait for other blocks to finish before starting next iteration
+    hipDeviceSynchronize();
+    #ifdef DEBUG_KERNEL_ERRORS
+    Logger::Info("Post selectIterationBest Error: %s",
+                 hipGetErrorString(hipGetLastError()));
+    #endif
+
+    // Copy dev_bestSched back to host
+    gpuErrchk(hipMemcpyFromSymbol(&noImprovement, dev_noImprovement, sizeof(dev_noImprovement)));
+    gpuErrchk(hipMemcpyFromSymbol(&lowerBoundSchedFound, dev_lowerBoundSchedFound, sizeof(dev_lowerBoundSchedFound)));
+
+    hipDeviceSynchronize();
+    UpdatePheromone<<<gridDim, NUMTHREADSPERBLOCK>>>(dev_schedules, dev_AcoSchdulr, dev_bestSched);
+    hipDeviceSynchronize();
+    #ifdef DEBUG_KERNEL_ERRORS
+    Logger::Info("Post UpdatePheromone Error: %s",
+                 hipGetErrorString(hipGetLastError()));
+    #endif
+
+    ScalePheromone<<<gridDim, NUMTHREADSPERBLOCK>>>(dev_AcoSchdulr, dev_schedules);
+    hipDeviceSynchronize();
+    #ifdef DEBUG_KERNEL_ERRORS
+    Logger::Info("Post ScalePheromone Error: %s",
+                 hipGetErrorString(hipGetLastError()));
+    #endif
+
+    iterations++;
+    Logger::Info("Iterations completed: %d", iterations);
+  }
+  Logger::Info("ACO finished after %d iterations", iterations);
+  postACOPrint<<<1, NUMTHREADSPERBLOCK>>>(dev_AcoSchdulr);
+  hipDeviceSynchronize();
 }
 
 FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
@@ -1254,9 +1318,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     dArgs[4] = (void*)&dev_bestSched;
     dArgs[5] = (void*)&noImprovementMax;
     dArgs[6] = (void*)&dev_blockBestIndex;
-    gpuErrchk(hipLaunchCooperativeKernel((void*)Dev_ACO, gridDim, blockDim, 
-                                          dArgs, 0, NULL));
-    hipDeviceSynchronize();
+    Dev_ACO(dev_rgn_, dev_DDG_, dev_AcoSchdulr, dev_schedules, dev_bestSched, noImprovementMax, dev_blockBestIndex, gridDim);
     Logger::Info("Post Kernel Error: %s", 
                  hipGetErrorString(hipGetLastError()));
     // Copy dev_bestSched back to host
@@ -1326,8 +1388,10 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
         }
       }
 #if !USE_ACS
-      if (iterationBest)
+      if (iterationBest) {
         UpdatePheromone(iterationBest, false);
+        ScalePheromoneTable();
+      }
 #endif
       if (shouldReplaceSchedule(bestSchedule, iterationBest, true, RPTarget)) {
         if (bestSchedule && bestSchedule != InitialSchedule)
@@ -1488,6 +1552,12 @@ void ACOScheduler::UpdatePheromone(InstSchedule *schedule, bool isIterationBest)
   if (print_aco_trace)
     PrintPheromone();
 #endif
+}
+
+__device__
+void ACOScheduler::ResetStalls(InstSchedule **dev_schedules) {
+  dev_schedules[GLOBALTID]->resetTotalStalls();
+  dev_schedules[GLOBALTID]->resetUnnecessaryStalls();
 }
 
 __host__ __device__
