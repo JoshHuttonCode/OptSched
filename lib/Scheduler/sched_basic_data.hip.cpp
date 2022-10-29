@@ -439,6 +439,7 @@ int SchedInstruction::GetLtncySum() const {
   for (int i = 0; i < scsrCnt_; i++) {
     sum += latencies_[i];
   }
+  return sum;
   #else 
   return GetScsrLblSum(); 
   #endif
@@ -454,6 +455,7 @@ int SchedInstruction::GetMaxLtncy() const {
       max = latencies_[i];
     }
   }
+  return max;
   #else  
   return GetMaxEdgeLabel();
   #endif
@@ -472,7 +474,7 @@ __host__
 SchedInstruction *SchedInstruction::GetFrstPrdcsr(InstCount *scsrNum,
                                                   UDT_GLABEL *ltncy,
                                                   DependenceType *depType,
-						                                      InstCount *toNodeNum) {
+                                                  InstCount *toNodeNum) {
   GraphEdge *edge = GetFrstPrdcsrEdge();
   if (!edge)
     return NULL;
@@ -491,7 +493,7 @@ __host__
 SchedInstruction *SchedInstruction::GetNxtPrdcsr(InstCount *scsrNum,
                                                  UDT_GLABEL *ltncy,
                                                  DependenceType *depType,
-						                                     InstCount *toNodeNum) {
+                                                 InstCount *toNodeNum) {
   GraphEdge *edge = GetNxtPrdcsrEdge();
   if (!edge)
     return NULL;
@@ -537,7 +539,7 @@ __host__
 SchedInstruction *SchedInstruction::GetFrstScsr(InstCount *prdcsrNum,
                                                 UDT_GLABEL *ltncy,
                                                 DependenceType *depType,
-						                                    InstCount *toNodeNum,
+                                                InstCount *toNodeNum,
                                                 bool *IsArtificial) {
   GraphEdge *edge = GetFrstScsrEdge();
   if (!edge)
@@ -559,7 +561,7 @@ __host__
 SchedInstruction *SchedInstruction::GetNxtScsr(InstCount *prdcsrNum,
                                                UDT_GLABEL *ltncy,
                                                DependenceType *depType,
-					                                     InstCount *toNodeNum,
+                                               InstCount *toNodeNum,
                                                bool *IsArtificial) {
   GraphEdge *edge = GetNxtScsrEdge();
   if (!edge)

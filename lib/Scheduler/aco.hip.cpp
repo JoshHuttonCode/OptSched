@@ -586,7 +586,6 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
         printf("cyclenum: %d Close to RP Target: %s\n", dev_crntCycleNum_[GLOBALTID], closeToRPTarget ? "true" : "false");
       }
       #endif
-      int totalstalls__ = schedule->getTotalStalls();
       // select the instruction and get info on it
       InstCount SelIndx = SelectInstruction(lastInst, schedule->getTotalStalls(), dev_rgn_, unnecessarilyStalling, closeToRPTarget, waitFor ? true: false);
 
