@@ -289,10 +289,7 @@ public:
   void Reset();
 
   // Copy GraphNode arrays/pointers to device
-  void CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes,
-		            InstCount instCnt, std::vector<GraphEdge *> *edges,
-                            GraphEdge *dev_edges, GraphEdge **dev_scsrElmnts_, 
-                            unsigned long *dev_keys, int &scsrIndex);
+  void CopyPointersToDevice(GraphNode *dev_node, GraphNode **dev_nodes);
   // Calls hipFree on all arrays/objects that were allocated with hipMalloc
   void FreeDevicePointers();
 

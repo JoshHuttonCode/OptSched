@@ -1136,17 +1136,10 @@ void SchedInstruction::SetupForDevice() {
        }
 }
 
-// TODO(bruce) fix method signature
 void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
                                             GraphNode **dev_nodes,
-					                                  InstCount instCnt, 
 					                                  RegisterFile *dev_regFiles,
                                             int numThreads, 
-                                            std::vector<GraphEdge *> *edges,
-                                            GraphEdge *dev_edges, 
-                                            GraphEdge **dev_scsrElmnts, 
-                                            unsigned long *dev_keys, 
-                                            int &scsrIndex,
                                             InstCount *dev_ltncyPerPrdcsr,
                                             int &ltncyIndex) {
   SetupForDevice();
@@ -1171,9 +1164,7 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
   }
   ltncyIndex += prdcsrCnt_;
 
-  GraphNode::CopyPointersToDevice((GraphNode *)dev_inst, dev_nodes, instCnt,
-                                  edges, dev_edges, dev_scsrElmnts, 
-                                  dev_keys, scsrIndex);
+  GraphNode::CopyPointersToDevice((GraphNode *)dev_inst, dev_nodes);
   
   // make sure managed mem is copied to device before kernel start
   memSize = sizeof(InstCount *) * numThreads;

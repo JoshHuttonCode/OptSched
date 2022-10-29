@@ -3726,10 +3726,7 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
   // and update RegFiles pointer to dev_regFiles
   for (InstCount i = 0; i < instCnt_; i++)
     insts_[i].CopyPointersToDevice(&dev_DDG->insts_[i], dev_DDG->nodes_, 
-		                   instCnt_, dev_regFiles, numThreads,
-                                   edges_, dev_edges_,
-                                   dev_scsrElmnts_,
-                                   dev_keys_, scsrIndex,
+                                   dev_regFiles, numThreads,
                                    dev_latencies_, latencyIndex);
   memSize = sizeof(SchedInstruction) * instCnt_;
   gpuErrchk(hipMemPrefetchAsync(dev_insts, memSize, 0));

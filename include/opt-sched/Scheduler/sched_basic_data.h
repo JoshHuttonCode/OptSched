@@ -548,12 +548,12 @@ public:
 
   // Copies pointers to device and links them to device inst. Also uses
   // the device nodes_ array to set nodes_ in GraphNode
-  void CopyPointersToDevice(SchedInstruction *dev_inst, GraphNode **dev_nodes, 
-		            InstCount instCnt, RegisterFile *dev_regFiles, 
-                            int numThreads, std::vector<GraphEdge *> *edges,
-                            GraphEdge *dev_edges, GraphEdge **dev_scsrElmnts_, 
-                            unsigned long *dev_keys, int &scsrIndex,
-                            InstCount *dev_ltncyPerPrdcsr, int &ltncyIndex);
+  void CopyPointersToDevice(SchedInstruction *dev_inst,
+                            GraphNode **dev_nodes,
+                            RegisterFile *dev_regFiles,
+                            int numThreads, 
+                            InstCount *dev_ltncyPerPrdcsr,
+                            int &ltncyIndex);
   // Calls hipFree on all arrays/objects that were allocated with hipMalloc
   void FreeDevicePointers(int numThreads);
   // Allocates arrays used for storing individual values for each thread in
