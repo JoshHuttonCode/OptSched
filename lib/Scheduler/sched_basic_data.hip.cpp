@@ -714,7 +714,6 @@ IssueType SchedInstruction::GetIssueType() const { return issuType_; }
 __host__ __device__
 bool SchedInstruction::IsSchduld(InstCount *cycle) const {
 #ifdef __HIP_DEVICE_COMPILE__
-  printf("IsSchduld() is called, dev_crntSchedCycle_ is needed\n");
 #else
   if (cycle)
     *cycle = crntSchedCycle_;
@@ -725,7 +724,6 @@ bool SchedInstruction::IsSchduld(InstCount *cycle) const {
 __host__ __device__
 InstCount SchedInstruction::GetSchedCycle() const { 
 #ifdef __HIP_DEVICE_COMPILE__
-  printf("GetSchedCycle() is called, dev_crntSchedCycle_ is needed\n");
 #else
   return crntSchedCycle_;
 #endif
@@ -734,7 +732,6 @@ InstCount SchedInstruction::GetSchedCycle() const {
 __host__ __device__
 InstCount SchedInstruction::GetSchedSlot() const { 
 #ifdef __HIP_DEVICE_COMPILE__
-  printf("GetSchedSlot() is called, dev_crntSchedSlot_ is needed\n");
 #else
   return crntSchedSlot_;
 #endif
@@ -743,7 +740,6 @@ InstCount SchedInstruction::GetSchedSlot() const {
 __host__ __device__
 InstCount SchedInstruction::GetCrntDeadline() const {
 #ifdef __HIP_DEVICE_COMPILE__
-  printf("GetCrntDeadline() is called, dev_crntSchedSlot_ is needed\n");
 #else
   return IsSchduld() ? crntSchedCycle_ : crntRange_->GetDeadline();
 #endif
@@ -752,7 +748,6 @@ InstCount SchedInstruction::GetCrntDeadline() const {
 __host__ __device__
 InstCount SchedInstruction::GetCrntReleaseTime() const {
 #ifdef __HIP_DEVICE_COMPILE__
-  printf("GetCrntReleaseTime() is called, dev_crntSchedSlot_ is needed\n");
 #else
   return IsSchduld() ? crntSchedCycle_ : GetCrntLwrBound(DIR_FRWRD);
 #endif
@@ -761,7 +756,6 @@ InstCount SchedInstruction::GetCrntReleaseTime() const {
 __host__ __device__
 InstCount SchedInstruction::GetRlxdCycle() const {
 #ifdef __HIP_DEVICE_COMPILE__
-  printf("GetRlxdCycle() is called, dev_crntSchedSlot_ is needed\n");
 #else
   return IsSchduld() ? crntSchedCycle_ : crntRlxdCycle_;
 #endif
