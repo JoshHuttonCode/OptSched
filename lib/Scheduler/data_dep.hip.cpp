@@ -3727,13 +3727,11 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
   predOrder_ = new int[lngthScsrElmnts];
   int indexOffset = 0;
 
-  // Copy SchedInstruction/GraphNode pointers and link them to device inst
-  // and update RegFiles pointer to dev_regFiles
   for (InstCount i = 0; i < instCnt_; i++) {
-    int j = 0;
     DependenceType _dep;
     insts_[i].ddgIndex = indexOffset;
     int prdcsrNum, latency, toNodeNum;
+    // Partition scsrs_, latencies_, predOrder_ for each SchedInstruction.
     for (SchedInstruction *crntScsr = insts_[i].GetFrstScsr(&prdcsrNum, 
                                               &latency,
                                               &_dep, 
@@ -3746,11 +3744,12 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
         indexOffset += 1;
     }
 
+    // Copy SchedInstruction/GraphNode pointers and link them to device inst
+    // and update RegFiles pointer to dev_regFiles
     insts_[i].CopyPointersToDevice(&dev_DDG->insts_[i], dev_DDG->nodes_, 
                                    dev_regFiles, numThreads,
                                    dev_latencies_, latencyIndex);
   }
-  assert(indexOffset == lngthScsrElmnts);
   memSize = sizeof(int) * lngthScsrElmnts;
   gpuErrchk(hipMalloc(&(dev_DDG->scsrs_), memSize));
   gpuErrchk(hipMalloc(&(dev_DDG->latencies_), memSize));
