@@ -1106,7 +1106,7 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
 					                                  RegisterFile *dev_regFiles,
                                             int numThreads, 
                                             InstCount *dev_ltncyPerPrdcsr,
-                                            int &ltncyIndex, size_t &totalMemSize) {
+                                            int &ltncyIndex) {
   SetupForDevice();
   size_t memSize;
   memSize = sizeof(InstCount) * scsrCnt_;
@@ -1120,7 +1120,6 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
     gpuErrchk(hipMemcpy(dev_inst->predOrder_, predOrder_, memSize, hipMemcpyHostToDevice));
 
   }
-  totalMemSize += memSize*3;
   // Make sure instruction knows whether it's a leaf on device for legality checking.
   dev_inst->SetDevIsLeaf(scsrCnt_ == 0);
   dev_inst->RegFiles_ = dev_regFiles;

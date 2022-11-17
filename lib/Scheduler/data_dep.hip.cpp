@@ -3701,7 +3701,7 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
   for (InstCount i = 0; i < instCnt_; i++)
     insts_[i].CopyPointersToDevice(&dev_DDG->insts_[i], dev_DDG->insts_,
                                    dev_regFiles, numThreads,
-                                   dev_latencies_, latencyIndex, totalMemSize);
+                                   dev_latencies_, latencyIndex);
   memSize = sizeof(SchedInstruction) * instCnt_;
   gpuErrchk(hipMemPrefetchAsync(dev_insts, memSize, 0));
   memSize = sizeof(RegisterFile) * machMdl_->GetRegTypeCnt();

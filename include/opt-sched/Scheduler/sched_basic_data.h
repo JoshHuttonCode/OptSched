@@ -553,7 +553,7 @@ public:
                             RegisterFile *dev_regFiles,
                             int numThreads, 
                             InstCount *dev_ltncyPerPrdcsr,
-                            int &ltncyIndex, size_t &totalMemSize);
+                            int &ltncyIndex);
   // Calls hipFree on all arrays/objects that were allocated with hipMalloc
   void FreeDevicePointers(int numThreads);
   // Allocates arrays used for storing individual values for each thread in
