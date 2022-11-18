@@ -3733,8 +3733,7 @@ void DataDepGraph::CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads) {
     // Copy SchedInstruction/GraphNode pointers and link them to device inst
     // and update RegFiles pointer to dev_regFiles
     insts_[i].CopyPointersToDevice(&dev_DDG->insts_[i], dev_DDG->insts_,
-                                   dev_regFiles, numThreads,
-                                   dev_latencies_);
+                                   dev_regFiles);
   }
   memSize = sizeof(int) * lngthScsrElmnts;
   gpuErrchk(hipMalloc(&(dev_DDG->scsrs_), memSize));
@@ -3770,11 +3769,6 @@ void DataDepGraph::FreeDevicePointers(int numThreads) {
   hipFree(scsrs_);
   hipFree(latencies_);
   hipFree(predOrder_);
-  // hipFree(dev_latencies_);
-  // hipFree(dev_crntRange_);
-  // (Josh) These frees are invalid but I am not sure why
-  // hipFree(dev_scsrElmnts_);
-  // hipFree(dev_keys_);
 }
 
 void DataDepGraph::FreeDevEdges() {

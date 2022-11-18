@@ -441,10 +441,6 @@ protected:
   // object holds all registers for a given register type.
   RegisterFile *RegFiles;
 
-  GraphEdge **dev_scsrElmnts_;
-  unsigned long *dev_keys_;
-  InstCount *dev_latencies_;
-
   InstCount maxIndependentInstructions_;
 
   __host__

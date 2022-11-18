@@ -1042,9 +1042,7 @@ void SchedInstruction::InitializeNode_(InstCount instNum,
 
 void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
                                             SchedInstruction *dev_nodes,
-					                                  RegisterFile *dev_regFiles,
-                                            int numThreads, 
-                                            InstCount *dev_ltncyPerPrdcsr) {
+					                                  RegisterFile *dev_regFiles) {
 
   // Store these on the device instruction--we won't be able to compute them without
   // GraphEdges.
@@ -1066,8 +1064,6 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
 }
 
 void SchedInstruction::FreeDevicePointers(int numThreads) {
-  hipFree(ltncyPerPrdcsr_);
-  hipFree(crntRange_);
   hipFree(dev_lastUseCnt_);
   hipFree(dev_minRdyCycle_);
   hipFree(dev_unschduldPrdcsrCnt_);

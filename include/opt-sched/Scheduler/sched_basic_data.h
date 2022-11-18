@@ -551,9 +551,7 @@ public:
   // the device nodes_ array to set nodes_ in GraphNode
   void CopyPointersToDevice(SchedInstruction *dev_inst,
                             SchedInstruction *dev_instsArray,
-                            RegisterFile *dev_regFiles,
-                            int numThreads, 
-                            InstCount *dev_ltncyPerPrdcsr);
+                            RegisterFile *dev_regFiles);
   // Calls hipFree on all arrays/objects that were allocated with hipMalloc
   void FreeDevicePointers(int numThreads);
   // Allocates arrays used for storing individual values for each thread in
