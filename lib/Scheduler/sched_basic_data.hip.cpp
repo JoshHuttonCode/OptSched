@@ -1065,9 +1065,6 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
 
   // Make sure instruction knows whether it's a leaf on device for legality checking.
   dev_inst->SetDevIsLeaf(scsrCnt_ == 0);
-
-  // TODO(bruce): Investigate possibility of removing below.
-  dev_inst->insts_ = dev_nodes;
 }
 
 void SchedInstruction::FreeDevicePointers(int numThreads) {
