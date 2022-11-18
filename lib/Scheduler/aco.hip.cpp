@@ -1677,7 +1677,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
         }
         #endif
         bool wasLastPrdcsr =
-            crntScsr->PrdcsrSchduld(prdcsrNum, dev_crntCycleNum_[GLOBALTID], scsrRdyCycle);
+            crntScsr->PrdcsrSchduld(prdcsrNum, dev_crntCycleNum_[GLOBALTID], scsrRdyCycle, dev_DDG_->ltncyPerPrdcsr_);
 
         if (wasLastPrdcsr) {
           // If all other predecessors of this successor have been scheduled then

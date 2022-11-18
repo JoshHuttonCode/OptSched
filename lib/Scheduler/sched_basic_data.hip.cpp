@@ -667,10 +667,10 @@ void SchedInstruction::SetBounds(InstCount flb, InstCount blb) {
 
 __host__ __device__
 bool SchedInstruction::PrdcsrSchduld(InstCount prdcsrNum, InstCount cycle,
-                                     InstCount &rdyCycle) {
+                                     InstCount &rdyCycle, InstCount *ltncyPerPrdcsr) {
   assert(prdcsrNum < prdcsrCnt_);
 #ifdef __HIP_DEVICE_COMPILE__
-  auto readyCycleBasedOnPredecessor = cycle + ltncyPerPrdcsr_[prdcsrNum];
+  auto readyCycleBasedOnPredecessor = cycle + ltncyPerPrdcsr[ddgPredecessorIndex + prdcsrNum];
 
   if (readyCycleBasedOnPredecessor > dev_minRdyCycle_[GLOBALTID]) {
     dev_minRdyCycle_[GLOBALTID] = readyCycleBasedOnPredecessor;
@@ -1044,8 +1044,7 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
                                             SchedInstruction *dev_nodes,
 					                                  RegisterFile *dev_regFiles,
                                             int numThreads, 
-                                            InstCount *dev_ltncyPerPrdcsr,
-                                            int &ltncyIndex) {
+                                            InstCount *dev_ltncyPerPrdcsr) {
 
   // Store these on the device instruction--we won't be able to compute them without
   // GraphEdges.
@@ -1055,16 +1054,14 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
   // Index of this instruction's partition in DDG's scsrs_, latencies_, predOrder_.
   dev_inst->ddgIndex = ddgIndex;
 
+  // Index of this instruction's partition in DDG's ltncyPerPrdcsr_.
+  dev_inst->ddgPredecessorIndex = ddgPredecessorIndex;
+
   // Make sure instruction knows whether it's a leaf on device for legality checking.
   dev_inst->SetDevIsLeaf(scsrCnt_ == 0);
 
   // TODO(bruce): Investigate possibility of removing below.
   dev_inst->RegFiles_ = dev_regFiles;
-  dev_inst->ltncyPerPrdcsr_ = &dev_ltncyPerPrdcsr[ltncyIndex];
-  for (InstCount i = 0; i < prdcsrCnt_; i++) {
-    dev_inst->ltncyPerPrdcsr_[i] = ltncyPerPrdcsr_[i];
-  }
-  ltncyIndex += prdcsrCnt_;
   dev_inst->insts_ = dev_nodes;
 }
 

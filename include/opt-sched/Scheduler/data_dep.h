@@ -350,6 +350,7 @@ public:
   int* scsrs_;
   int* latencies_;
   int* predOrder_;
+  int* ltncyPerPrdcsr_;
 
   // Deep Copies DDG's arrays to device and links them to device DDG pointer
   void CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads = 0);
