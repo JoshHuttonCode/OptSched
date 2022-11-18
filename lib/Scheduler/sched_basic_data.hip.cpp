@@ -938,15 +938,23 @@ void SchedInstruction::SetPrdcsrNums_() {
 }
 
 __host__ __device__
-int16_t SchedInstruction::CmputLastUseCnt() {
+int16_t SchedInstruction::CmputLastUseCnt(RegisterFile *RegFiles) {
 #ifdef __HIP_DEVICE_COMPILE__
   dev_lastUseCnt_[GLOBALTID] = 0;
 #else
   lastUseCnt_ = 0;
 #endif
 
+// if we are on device or passing in RegFiles, use those
+// otherwise, assume we can get regFiles from SchedInstruction itself
+RegisterFile *registerFiles;
+if (RegFiles)
+  registerFiles = RegFiles;
+else
+  registerFiles = RegFiles_;
+
   for (int i = 0; i < useCnt_; i++) {
-    Register *reg = RegFiles_[uses_[i].regType_].GetReg(uses_[i].regNum_);
+    Register *reg = registerFiles[uses_[i].regType_].GetReg(uses_[i].regNum_);
     assert(reg->GetCrntUseCnt() < reg->GetUseCnt());
     if (reg->GetCrntUseCnt() + 1 == reg->GetUseCnt())
 #ifdef __HIP_DEVICE_COMPILE__
@@ -1059,7 +1067,6 @@ void SchedInstruction::CopyPointersToDevice(SchedInstruction *dev_inst,
   dev_inst->SetDevIsLeaf(scsrCnt_ == 0);
 
   // TODO(bruce): Investigate possibility of removing below.
-  dev_inst->RegFiles_ = dev_regFiles;
   dev_inst->insts_ = dev_nodes;
 }
 

@@ -352,6 +352,10 @@ public:
   int* predOrder_;
   int* ltncyPerPrdcsr_;
 
+  // Tracks all registers in the scheduling region. Each RegisterFile
+  // object holds all registers for a given register type.
+  RegisterFile *RegFiles;
+
   // Deep Copies DDG's arrays to device and links them to device DDG pointer
   void CopyPointersToDevice(DataDepGraph *dev_DDG, int numThreads = 0);
   // Calls hipFree on all arrays/objects that were allocated with hipMalloc
@@ -436,10 +440,6 @@ protected:
 
   LATENCY_PRECISION ltncyPrcsn_;
   int edgeCntPerLtncy_[MAX_LATENCY_VALUE + 1];
-
-  // Tracks all registers in the scheduling region. Each RegisterFile
-  // object holds all registers for a given register type.
-  RegisterFile *RegFiles;
 
   InstCount maxIndependentInstructions_;
 
