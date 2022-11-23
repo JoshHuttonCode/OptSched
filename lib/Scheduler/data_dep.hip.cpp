@@ -3769,6 +3769,7 @@ void DataDepGraph::FreeDevicePointers(int numThreads) {
   hipFree(scsrs_);
   hipFree(latencies_);
   hipFree(predOrder_);
+  hipFree(ltncyPerPrdcsr_);
 }
 
 void DataDepGraph::FreeDevEdges() {
