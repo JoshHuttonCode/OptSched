@@ -33,7 +33,7 @@ public:
 };
 
 struct ACOReadyListEntry {
-  InstCount InstId, ReadyOn;
+  InstCount InstId, ReadyOn, LUCMinusDefs;
   HeurType Heuristic;
   pheromone_t Score;
 };
@@ -67,12 +67,14 @@ protected:
   //pointers to areas in the InstCount allocation that store ready list entry attributes
   InstCount *InstrBase;
   InstCount *ReadyOnBase;
+  InstCount *LUCMinusDefsBase;
   HeurType *HeurBase;
   pheromone_t *ScoreBase;
 
   //device pointers to areas in the InstCount allocation that store ready list entry attributes
   InstCount *dev_InstrBase;
   InstCount *dev_ReadyOnBase;
+  InstCount *dev_LUCMinusDefsBase;
   HeurType *dev_HeurBase;
   pheromone_t *dev_ScoreBase;
 
@@ -131,6 +133,8 @@ public:
   __host__ __device__
   InstCount *getInstReadyOnAtIndex(InstCount Indx) const;
   __host__ __device__
+  InstCount *getInstLUCMinusDefAtIndex(InstCount Indx) const;
+  __host__ __device__
   HeurType *getInstHeuristicAtIndex(InstCount Indx) const;
   __host__ __device__
   pheromone_t *getInstScoreAtIndex(InstCount Indx) const;
@@ -167,6 +171,15 @@ inline InstCount *ACOReadyList::getInstReadyOnAtIndex(InstCount Indx) const {
     return dev_ReadyOnBase + Indx*numThreads_ + GLOBALTID;
   #else
     return ReadyOnBase + Indx;
+  #endif
+}
+
+__host__ __device__
+inline InstCount *ACOReadyList::getInstLUCMinusDefAtIndex(InstCount Indx) const {
+  #ifdef __HIP_DEVICE_COMPILE__
+    return dev_LUCMinusDefsBase + Indx*numThreads_ + GLOBALTID;
+  #else
+    return LUCMinusDefsBase + Indx;
   #endif
 }
 

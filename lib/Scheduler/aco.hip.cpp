@@ -253,15 +253,12 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
 
   for (InstCount I = 0; I < dev_readyLs->getReadyListSize(); ++I) {
     RPIsHigh = false;
-    InstCount CandidateId = *dev_readyLs->getInstIdAtIndex(I);
-    SchedInstruction *candidateInst = dataDepGraph_->GetInstByIndx(CandidateId);
-    HeurType candidateLUC = candidateInst->GetLastUseCnt();
-    int16_t candidateDefs = candidateInst->GetDefCnt();
+    InstCount CandidateLucMinusDef = *dev_readyLs->getInstLUCMinusDefAtIndex(I);
 
     // compute the score
     HeurType Heur = *dev_readyLs->getInstHeuristicAtIndex(I);
     pheromone_t IScore = Score(lastInstId, *dev_readyLs->getInstIdAtIndex(I), Heur);
-    if (dev_RP0OrPositiveCount[GLOBALTID] != 0 && candidateDefs > candidateLUC)
+    if (dev_RP0OrPositiveCount[GLOBALTID] != 0 && CandidateLucMinusDef < 0)
       IScore = IScore * 9/10;
 
     *dev_readyLs->getInstScoreAtIndex(I) = IScore;
@@ -278,7 +275,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
         continue;
 
       // as well as instructions with a net negative impact on RP
-      if (candidateDefs > candidateLUC)
+      if (CandidateLucMinusDef < 0)
         continue;
     }
 
@@ -362,15 +359,12 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
 
   for (InstCount I = 0; I < readyLs->getReadyListSize(); ++I) {
     RPIsHigh = false;
-    InstCount CandidateId = *readyLs->getInstIdAtIndex(I);
-    SchedInstruction *candidateInst = dataDepGraph_->GetInstByIndx(CandidateId);
-    HeurType candidateLUC = candidateInst->GetLastUseCnt();
-    int16_t candidateDefs = candidateInst->GetDefCnt();
+    InstCount CandidateLucMinusDef = *readyLs->getInstLUCMinusDefAtIndex(I);
 
     // compute the score
     HeurType Heur = *readyLs->getInstHeuristicAtIndex(I);
     pheromone_t IScore = Score(lastInstId, *readyLs->getInstIdAtIndex(I), Heur);
-    if (RP0OrPositiveCount != 0 && candidateDefs > candidateLUC)
+    if (RP0OrPositiveCount != 0 && CandidateLucMinusDef < 0)
       IScore = IScore * 9/10;
 
     *readyLs->getInstScoreAtIndex(I) = IScore;
@@ -382,7 +376,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
         continue;
 
       // as well as instructions with a net negative impact on RP
-      if (candidateDefs > candidateLUC)
+      if (CandidateLucMinusDef < 0)
         continue;
     }
     
@@ -557,7 +551,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   InstCount RootId = rootInst_->GetNum();
   HeurType RootHeuristic = dev_kHelper->computeKey(rootInst_, true, dev_DDG_->RegFiles);
   pheromone_t RootScore = Score(-1, RootId, RootHeuristic);
-  ACOReadyListEntry InitialRoot{RootId, 0, RootHeuristic, RootScore};
+  ACOReadyListEntry InitialRoot{RootId, 0, 0, RootHeuristic, RootScore};
   dev_readyLs->addInstructionToReadyList(InitialRoot);
   dev_readyLs->dev_ScoreSum[GLOBALTID] = RootScore;
   dev_MaxScoringInst[GLOBALTID] = 0;
@@ -574,11 +568,8 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
     // or positive effect on RP
     for (InstCount I = 0; I < dev_readyLs->getReadyListSize(); ++I) {
       if (*dev_readyLs->getInstReadyOnAtIndex(I) == dev_crntCycleNum_[GLOBALTID]) {
-        InstCount CandidateId = *dev_readyLs->getInstIdAtIndex(I);
-        SchedInstruction *candidateInst = dataDepGraph_->GetInstByIndx(CandidateId);
-        HeurType candidateLUC = candidateInst->GetLastUseCnt();
-        int16_t candidateDefs = candidateInst->GetDefCnt();
-        if (candidateDefs <= candidateLUC) {
+        InstCount CandidateLUCMinusDef = *dev_readyLs->getInstLUCMinusDefAtIndex(I);
+        if (CandidateLUCMinusDef <= 0) {
           dev_RP0OrPositiveCount[GLOBALTID] = dev_RP0OrPositiveCount[GLOBALTID] + 1;
         }
       }
@@ -664,6 +655,11 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
         schedule->incrementUnnecessaryStalls();
     } else {
       instNum = inst->GetNum();
+      #ifdef DEBUG_ACO_CRASH_LOCATIONS
+        if (hipThreadIdx_x == 0) {
+          printf("Trying to schedule: %d()\n", instNum);
+        }
+      #endif
       SchdulInst_(inst, dev_crntCycleNum_[GLOBALTID]);
       inst->Schedule(dev_crntCycleNum_[GLOBALTID],
                      dev_crntSlotNum_[GLOBALTID]);
@@ -737,7 +733,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   InstCount RootId = rootInst_->GetNum();
   HeurType RootHeuristic = kHelper->computeKey(rootInst_, true, dataDepGraph_->RegFiles);
   pheromone_t RootScore = Score(-1, RootId, RootHeuristic);
-  ACOReadyListEntry InitialRoot{RootId, 0, RootHeuristic, RootScore};
+  ACOReadyListEntry InitialRoot{RootId, 0, 0, RootHeuristic, RootScore};
   readyLs->addInstructionToReadyList(InitialRoot);
   readyLs->ScoreSum = RootScore;
   MaxScoringInst = 0;
@@ -751,11 +747,8 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
     // or positive effect on RP
     for (InstCount I = 0; I < readyLs->getReadyListSize(); ++I) {
       if (*readyLs->getInstReadyOnAtIndex(I) == crntCycleNum_) {
-        InstCount CandidateId = *readyLs->getInstIdAtIndex(I);
-        SchedInstruction *candidateInst = dataDepGraph_->GetInstByIndx(CandidateId);
-        HeurType candidateLUC = candidateInst->GetLastUseCnt();
-        int16_t candidateDefs = candidateInst->GetDefCnt();
-        if (candidateDefs <= candidateLUC) {
+        InstCount CandidateLUCMinusDef = *readyLs->getInstLUCMinusDefAtIndex(I);
+        if (CandidateLUCMinusDef <= 0) {
           RP0OrPositiveCount = RP0OrPositiveCount + 1;
         }
       }
@@ -1683,7 +1676,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
           // If all other predecessors of this successor have been scheduled then
           // we now know in which cycle this successor will become ready.
           HeurType HeurWOLuc = dev_kHelper->computeKey(crntScsr, false, dev_DDG_->RegFiles);
-          dev_readyLs->addInstructionToReadyList(ACOReadyListEntry{crntScsr->GetNum(), scsrRdyCycle, HeurWOLuc, 0});
+          dev_readyLs->addInstructionToReadyList(ACOReadyListEntry{crntScsr->GetNum(), scsrRdyCycle, 0, HeurWOLuc, 0});
         }
     }
     #ifdef DEBUG_INSTR_SELECTION
@@ -1700,22 +1693,21 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
       //LUC component, and then compute the score
       HeurType Heur = *dev_readyLs->getInstHeuristicAtIndex(I);
       InstCount CandidateId = *dev_readyLs->getInstIdAtIndex(I);
-      if (LUCEntry.Width) {
-        SchedInstruction *ScsrInst = dataDepGraph_->GetInstByIndx(CandidateId);
-        HeurType LUCVal = ScsrInst->CmputLastUseCnt(dev_DDG_->RegFiles);
-        LUCVal <<= LUCEntry.Offset;
-        Heur &= LUCVal;
-      }
-      if (dev_RP0OrPositiveCount[GLOBALTID]) {
-        if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID])
-          continue;
+      InstCount CandidateLUCMinusDefs = *dev_readyLs->getInstLUCMinusDefAtIndex(I);
 
-        SchedInstruction *candidateInst = dataDepGraph_->GetInstByIndx(CandidateId);
-        HeurType candidateLUC = candidateInst->GetLastUseCnt();
-        int16_t candidateDefs = candidateInst->GetDefCnt();
-        if (candidateDefs <= candidateLUC) {
-          dev_RP0OrPositiveCount[GLOBALTID] = dev_RP0OrPositiveCount[GLOBALTID] + 1;
+      SchedInstruction *ScsrInst = dataDepGraph_->GetInstByIndx(CandidateId);
+      int16_t LUCVal = ScsrInst->CmputLastUseCnt(dev_DDG_->RegFiles);
+      int16_t DefsVal = ScsrInst->GetDefCnt();
+      CandidateLUCMinusDefs = LUCVal - DefsVal;
+      #ifdef DEBUG_ACO_CRASH_LOCATIONS
+        if (hipThreadIdx_x == 0) {
+          printf("LUCMinusDefs: %d\n", CandidateLUCMinusDefs);
         }
+      #endif
+      if (LUCEntry.Width) {
+        HeurType HeurLUCVal = (HeurType) LUCVal;
+        HeurLUCVal <<= LUCEntry.Offset;
+        Heur &= HeurLUCVal;
       }
     }
   #else // host version of function
@@ -1729,7 +1721,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
           // If all other predecessors of this successor have been scheduled then
           // we now know in which cycle this successor will become ready.
           HeurType HeurWOLuc = kHelper->computeKey(crntScsr, false, dataDepGraph_->RegFiles);
-          readyLs->addInstructionToReadyList(ACOReadyListEntry{crntScsr->GetNum(), scsrRdyCycle, HeurWOLuc, 0});
+          readyLs->addInstructionToReadyList(ACOReadyListEntry{crntScsr->GetNum(), scsrRdyCycle, 0, HeurWOLuc, 0});
         }
     }
 
@@ -1742,22 +1734,17 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
       //LUC component, and then compute the score
       HeurType Heur = *readyLs->getInstHeuristicAtIndex(I);
       InstCount CandidateId = *readyLs->getInstIdAtIndex(I);
-      if (LUCEntry.Width) {
-        SchedInstruction *ScsrInst = dataDepGraph_->GetInstByIndx(CandidateId);
-        HeurType LUCVal = ScsrInst->CmputLastUseCnt(dataDepGraph_->RegFiles);
-        LUCVal <<= LUCEntry.Offset;
-        Heur &= LUCVal;
-      }
-      if (RP0OrPositiveCount) {
-        if (*dev_readyLs->getInstReadyOnAtIndex(I) > crntCycleNum_)
-          continue;
+      InstCount CandidateLUCMinusDefs = *readyLs->getInstLUCMinusDefAtIndex(I);
 
-        SchedInstruction *candidateInst = dataDepGraph_->GetInstByIndx(CandidateId);
-        HeurType candidateLUC = candidateInst->GetLastUseCnt();
-        int16_t candidateDefs = candidateInst->GetDefCnt();
-        if (candidateDefs <= candidateLUC) {
-          RP0OrPositiveCount = RP0OrPositiveCount + 1;
-        }
+      SchedInstruction *ScsrInst = dataDepGraph_->GetInstByIndx(CandidateId);
+      int16_t LUCVal = ScsrInst->CmputLastUseCnt(dataDepGraph_->RegFiles);
+      int16_t DefsVal = ScsrInst->GetDefCnt();
+      CandidateLUCMinusDefs = LUCVal - DefsVal;
+
+      if (LUCEntry.Width) {
+        HeurType HeurLUCVal = (HeurType) LUCVal;
+        HeurLUCVal <<= LUCEntry.Offset;
+        Heur &= HeurLUCVal;
       }
     }
   #endif

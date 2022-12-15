@@ -34,6 +34,7 @@ ACOReadyList::ACOReadyList() {
   //build shortcut pointers
   InstrBase = nullptr;
   ReadyOnBase = nullptr;
+  LUCMinusDefsBase = nullptr;
   HeurBase = nullptr;
   ScoreBase = nullptr;
 
@@ -47,13 +48,14 @@ ACOReadyList::ACOReadyList(InstCount RegionSize) {
   Overflowed = false;
 
   // create new allocations for the data
-  IntAllocation = new InstCount[2*CurrentCapacity];
+  IntAllocation = new InstCount[3*CurrentCapacity];
   HeurAllocation = new HeurType[CurrentCapacity];
   ScoreAllocation = new pheromone_t[CurrentCapacity];
 
   //build shortcut pointers
   InstrBase = IntAllocation;
   ReadyOnBase = IntAllocation + CurrentCapacity;
+  LUCMinusDefsBase = IntAllocation + 2*CurrentCapacity;
   HeurBase = HeurAllocation;
   ScoreBase = ScoreAllocation;
 }
@@ -67,13 +69,14 @@ ACOReadyList::ACOReadyList(const ACOReadyList &Other) {
   CurrentSize = Other.CurrentSize;
 
   // create new allocations for the data
-  IntAllocation = new InstCount[2*CurrentCapacity];
+  IntAllocation = new InstCount[3*CurrentCapacity];
   HeurAllocation = new HeurType[CurrentCapacity];
   ScoreAllocation = new pheromone_t[CurrentCapacity];
 
   //build shortcut pointers
   InstrBase = IntAllocation;
   ReadyOnBase = IntAllocation + CurrentCapacity;
+  LUCMinusDefsBase = IntAllocation + 2*CurrentCapacity;
   HeurBase = HeurAllocation;
   ScoreBase = ScoreAllocation;
 
@@ -81,6 +84,7 @@ ACOReadyList::ACOReadyList(const ACOReadyList &Other) {
   for (InstCount I = 0; I < CurrentSize; ++I) {
     InstrBase[I] = Other.InstrBase[I];
     ReadyOnBase[I] = Other.ReadyOnBase[I];
+    LUCMinusDefsBase[I] = Other.LUCMinusDefsBase[I];
     HeurBase[I] = Other.HeurBase[I];
     ScoreBase[I] = Other.ScoreBase[I];
   }
@@ -100,13 +104,14 @@ ACOReadyList &ACOReadyList::operator=(const ACOReadyList &Other) {
   delete[] ScoreAllocation;
 
   // create new allocations for the data
-  IntAllocation = new InstCount[2*CurrentCapacity];
+  IntAllocation = new InstCount[3*CurrentCapacity];
   HeurAllocation = new HeurType[CurrentCapacity];
   ScoreAllocation = new pheromone_t[CurrentCapacity];
 
   //build shortcut pointers
   InstrBase = IntAllocation;
   ReadyOnBase = IntAllocation + CurrentCapacity;
+  LUCMinusDefsBase = IntAllocation + 2*CurrentCapacity;
   HeurBase = HeurAllocation;
   ScoreBase = ScoreAllocation;
 
@@ -114,6 +119,7 @@ ACOReadyList &ACOReadyList::operator=(const ACOReadyList &Other) {
   for (InstCount I = 0; I < CurrentSize; ++I) {
     InstrBase[I] = Other.InstrBase[I];
     ReadyOnBase[I] = Other.ReadyOnBase[I];
+    LUCMinusDefsBase[I] = Other.LUCMinusDefsBase[I];
     HeurBase[I] = Other.HeurBase[I];
     ScoreBase[I] = Other.ScoreBase[I];
   }
@@ -140,6 +146,7 @@ ACOReadyList::ACOReadyList(ACOReadyList &&Other) noexcept {
 
   InstrBase = Other.InstrBase;
   ReadyOnBase = Other.ReadyOnBase;
+  LUCMinusDefsBase = Other.LUCMinusDefsBase;
   HeurBase = Other.HeurBase;
   ScoreBase = Other.ScoreBase;
 }
@@ -162,6 +169,7 @@ ACOReadyList &ACOReadyList::operator=(ACOReadyList &&Other) noexcept {
   
   InstrBase = Other.InstrBase;
   ReadyOnBase = Other.ReadyOnBase;
+  LUCMinusDefsBase = Other.LUCMinusDefsBase;
   HeurBase = Other.HeurBase;
   ScoreBase = Other.ScoreBase;
 
@@ -192,6 +200,7 @@ void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
     //add the instruction to the ready list
     dev_InstrBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.InstId;
     dev_ReadyOnBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.ReadyOn;
+    dev_LUCMinusDefsBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.LUCMinusDefs;
     dev_HeurBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Heuristic;
     dev_ScoreBase[dev_CurrentSize[GLOBALTID]*numThreads_ + GLOBALTID] = Entry.Score;
     ++dev_CurrentSize[GLOBALTID];
@@ -205,15 +214,16 @@ void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
       // The expansion formula is to make the new allocation 1.5 times the size of the old one
       // consider making this formula more aggressive
       int NewCap = OldCap + OldCap/2 + 1;
-      InstCount *NewIntFallback = new InstCount[2*NewCap];
+      InstCount *NewIntFallback = new InstCount[3*NewCap];
       HeurType *NewHeurFallback = new HeurType[NewCap];
       pheromone_t *NewScoreFallback = new pheromone_t[NewCap];
 
       // copy the data
-      InstCount NewInstrOffset = 0, NewReadyOnOffset = NewCap, HeurOffset = 0, ScoreOffset = 0;
+      InstCount NewInstrOffset = 0, NewReadyOnOffset = NewCap, NewLUCMinusDefsOffset = 2*NewCap, HeurOffset = 0, ScoreOffset = 0;
       for (int I = 0; I < CurrentSize; ++I) {
         NewIntFallback[NewInstrOffset + I] = InstrBase[I];
         NewIntFallback[NewReadyOnOffset + I] = ReadyOnBase[I];
+        NewIntFallback[NewLUCMinusDefsOffset + I] = LUCMinusDefsBase[I];
         NewHeurFallback[HeurOffset + I] = HeurBase[I];
         NewScoreFallback[ScoreOffset + I] = ScoreBase[I];
       }
@@ -231,6 +241,7 @@ void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
       // update/recompute pointers and other values
       InstrBase = IntAllocation + NewInstrOffset;
       ReadyOnBase = IntAllocation + NewReadyOnOffset;
+      LUCMinusDefsBase = IntAllocation + NewLUCMinusDefsOffset;
       HeurBase = HeurAllocation + HeurOffset;
       ScoreBase = ScoreAllocation + ScoreOffset;
       Overflowed = true;
@@ -244,6 +255,7 @@ void ACOReadyList::addInstructionToReadyList(const ACOReadyListEntry &Entry) {
     //add the instruction to the ready list
     InstrBase[CurrentSize] = Entry.InstId;
     ReadyOnBase[CurrentSize] = Entry.ReadyOn;
+    LUCMinusDefsBase[CurrentSize] = Entry.LUCMinusDefs;
     HeurBase[CurrentSize] = Entry.Heuristic;
     ScoreBase[CurrentSize] = Entry.Score;
     ++CurrentSize;
@@ -258,21 +270,24 @@ ACOReadyListEntry ACOReadyList::removeInstructionAtIndex(InstCount Indx) {
   #ifdef __HIP_DEVICE_COMPILE__
     assert(dev_CurrentSize[GLOBALTID] > 0 && Indx < dev_CurrentSize[GLOBALTID] && Indx >= 0);
     ACOReadyListEntry E{dev_InstrBase[Indx*numThreads_ + GLOBALTID], 
-                        dev_ReadyOnBase[Indx*numThreads_ + GLOBALTID], 
+                        dev_ReadyOnBase[Indx*numThreads_ + GLOBALTID],
+                        dev_LUCMinusDefsBase[Indx*numThreads_ + GLOBALTID], 
                         dev_HeurBase[Indx*numThreads_ + GLOBALTID], 
                         dev_ScoreBase[Indx*numThreads_ + GLOBALTID]};
     InstCount EndIndx = --dev_CurrentSize[GLOBALTID];
     dev_InstrBase[Indx*numThreads_ + GLOBALTID] = dev_InstrBase[EndIndx*numThreads_ + GLOBALTID];
     dev_ReadyOnBase[Indx*numThreads_ + GLOBALTID] = dev_ReadyOnBase[EndIndx*numThreads_ + GLOBALTID];
+    dev_LUCMinusDefsBase[Indx*numThreads_ + GLOBALTID] = dev_LUCMinusDefsBase[EndIndx*numThreads_ + GLOBALTID];
     dev_HeurBase[Indx*numThreads_ + GLOBALTID] = dev_HeurBase[EndIndx*numThreads_ + GLOBALTID];
     dev_ScoreBase[Indx*numThreads_ + GLOBALTID] = dev_ScoreBase[EndIndx*numThreads_ + GLOBALTID];
     return E;
   #else
     assert(CurrentSize > 0 && Indx < CurrentSize && Indx >= 0);
-    ACOReadyListEntry E{InstrBase[Indx], ReadyOnBase[Indx], HeurBase[Indx], ScoreBase[Indx]};
+    ACOReadyListEntry E{InstrBase[Indx], ReadyOnBase[Indx], LUCMinusDefsBase[Indx], HeurBase[Indx], ScoreBase[Indx]};
     InstCount EndIndx = --CurrentSize;
     InstrBase[Indx] = InstrBase[EndIndx];
     ReadyOnBase[Indx] = ReadyOnBase[EndIndx];
+    LUCMinusDefsBase[Indx] = LUCMinusDefsBase[EndIndx];
     HeurBase[Indx] = HeurBase[EndIndx];
     ScoreBase[Indx] = ScoreBase[EndIndx];
     return E;
@@ -284,7 +299,7 @@ void ACOReadyList::AllocDevArraysForParallelACO(int numThreads) {
   numThreads_ = numThreads;
 
   // Alloc dev array for dev_IntAllocation
-  memSize = sizeof(InstCount) * CurrentCapacity * numThreads_ * 2;
+  memSize = sizeof(InstCount) * CurrentCapacity * numThreads_ * 3;
   gpuErrchk(hipMalloc(&dev_IntAllocation, memSize));
 
   // Alloc dev array for dev_HeurAllocation
@@ -306,6 +321,7 @@ void ACOReadyList::AllocDevArraysForParallelACO(int numThreads) {
   //build shortcut pointers
   dev_InstrBase = dev_IntAllocation;
   dev_ReadyOnBase = &dev_IntAllocation[CurrentCapacity*numThreads];
+  dev_LUCMinusDefsBase = &dev_IntAllocation[CurrentCapacity*2*numThreads];
   dev_HeurBase = dev_HeurAllocation;
   dev_ScoreBase = dev_ScoreAllocation;
 }
