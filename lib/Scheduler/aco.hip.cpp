@@ -1274,6 +1274,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
       int diffSchedCount = 0;
     #endif
     while (noImprovement < noImprovementMax) {
+      iterations++;
       iterationBest = nullptr;
       for (int i = 0; i < numThreads_; i++) {
         InstSchedule *schedule = FindOneSchedule(RPTarget);
@@ -1353,7 +1354,6 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
 #if USE_ACS
       UpdatePheromone(bestSchedule, false);
 #endif
-      iterations++;
     }
     Logger::Info("%d ants terminated early", numAntsTerminated_);
     #ifdef CHECK_DIFFERENT_SCHEDULES
