@@ -68,7 +68,9 @@ ACOScheduler::ACOScheduler(DataDepGraph *dataDepGraph,
   numAntsTerminated_ = 0;
   numBlocks_ = numBlocks;
   numThreads_ = numBlocks_ * NUMTHREADSPERBLOCK;
-  if(!DEV_ACO || count_ < REGION_MIN_SIZE)
+
+  use_dev_ACO = schedIni.GetBool("DEV_ACO");
+  if(!use_dev_ACO || count_ < REGION_MIN_SIZE)
     numThreads_ = schedIni.GetInt("HOST_ANTS");
   else {
     dev_rgn_->SetNumThreads(numThreads_);
@@ -1261,7 +1263,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
     SetGlobalBestStalls(std::min(bestStallsValue, bestSchedule->GetCrntLngth() - dataDepGraph_->GetInstCnt()));
   printf("bestStallsValue is: %d, initial sched is: %d\n", bestStallsValue, bestSchedule->GetCrntLngth() - dataDepGraph_->GetInstCnt());
   
-  if (DEV_ACO && count_ >= REGION_MIN_SIZE) { // Run ACO on device
+  if (use_dev_ACO && count_ >= REGION_MIN_SIZE) { // Run ACO on device
     size_t memSize;
     // Update pheromones on device
     CopyPheromonesToDevice(dev_AcoSchdulr);
@@ -1468,7 +1470,7 @@ FUNC_RESULT ACOScheduler::FindSchedule(InstSchedule *schedule_out,
   schedule_out->Copy(bestSchedule);
   if (bestSchedule != InitialSchedule)
     delete bestSchedule;
-  if (!DEV_ACO || count_ < REGION_MIN_SIZE)
+  if (!use_dev_ACO || count_ < REGION_MIN_SIZE)
     printf("ACO finished after %d iterations\n", iterations);
 
   return RES_SUCCESS;
