@@ -270,9 +270,6 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
     if (dev_RP0OrPositiveCount[GLOBALTID] != 0 && candidateDefs > candidateLUC)
       IScore = IScore * 9/10;
 
-    *dev_readyLs->getInstScoreAtIndex(I) = IScore;
-    dev_readyLs->dev_ScoreSum[GLOBALTID] += IScore;
-
     #ifdef DEBUG_INSTR_SELECTION
     if (GLOBALTID==0)
       printf("Before Inst: %d, score: %f\n", *dev_readyLs->getInstIdAtIndex(I), IScore);
@@ -380,9 +377,6 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
     pheromone_t IScore = Score(lastInstId, *readyLs->getInstIdAtIndex(I), Heur);
     if (RP0OrPositiveCount != 0 && candidateDefs > candidateLUC)
       IScore = IScore * 9/10;
-
-    *readyLs->getInstScoreAtIndex(I) = IScore;
-    readyLs->ScoreSum += IScore;
 
     if (currentlyWaiting) {
       // if currently waiting on an instruction, do not consider semi-ready instructions 
