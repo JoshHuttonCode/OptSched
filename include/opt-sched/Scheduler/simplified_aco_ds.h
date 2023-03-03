@@ -11,6 +11,7 @@ Created:      Jun. 2021
 #include "opt-sched/Scheduler/sched_basic_data.h"
 #include <cstdint>
 
+#define NUMBLOCKSMANYANTS 80
 namespace llvm {
 namespace opt_sched {
 
@@ -76,6 +77,8 @@ protected:
   HeurType *dev_HeurBase;
   pheromone_t *dev_ScoreBase;
 
+  InstCount minRLSizePerWavefront[NUMBLOCKSMANYANTS];
+
   int numThreads_;
 
   //function to decide how large the primary buffer's capacity should be
@@ -113,13 +116,34 @@ public:
   __host__ __device__
   size_t getTotalSizeInBytes() const;
 
-  //gets the number of insturctions in the ready list
+  //gets the reduced size of the ready list to be used
   __host__ __device__
-  InstCount getReadyListSize() const { 
+  InstCount getReadyListSize() const {
     #ifdef __HIP_DEVICE_COMPILE__
-      return dev_CurrentSize[GLOBALTID];
+      if (minRLSizePerWavefront[hipBlockIdx_x] == 0 && dev_CurrentSize[GLOBALTID] > 0)
+        return 1;
+      return minRLSizePerWavefront[hipBlockIdx_x];
     #else
       return CurrentSize;
+    #endif
+  }
+
+  //gets the number of instructions in the ready list
+  __host__ __device__
+  InstCount getActualReadyListSize() const {
+    #ifdef __HIP_DEVICE_COMPILE__
+       return dev_CurrentSize[GLOBALTID];
+     #else
+       return CurrentSize;
+     #endif
+  }
+
+  //set the number of instructions in the ready list
+  __host__ __device__
+  void calculateReadyListSize() {
+    #ifdef __HIP_DEVICE_COMPILE__
+      minRLSizePerWavefront[hipBlockIdx_x] = 10000;
+      atomicMin(&minRLSizePerWavefront[hipBlockIdx_x], dev_CurrentSize[GLOBALTID]);
     #endif
   }
 

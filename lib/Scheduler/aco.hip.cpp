@@ -573,6 +573,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
     }
   #endif
   while (!IsSchedComplete_()) {
+    dev_readyLs->calculateReadyListSize();
     // incrementally calculate if there are any instructions with a neutral
     // or positive effect on RP
     for (InstCount I = 0; I < dev_readyLs->getReadyListSize(); ++I) {
@@ -1698,7 +1699,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
     // have increased another instruction's LUC Score
     PriorityEntry LUCEntry = dev_kHelper->getPriorityEntry(LSH_LUC);
     dev_RP0OrPositiveCount[GLOBALTID] = 0;
-    for (InstCount I = 0; I < dev_readyLs->getReadyListSize(); ++I) {
+    for (InstCount I = 0; I < dev_readyLs->getActualReadyListSize(); ++I) {
       //we first get the heuristic without the LUC component, add the LUC
       //LUC component, and then compute the score
       HeurType Heur = *dev_readyLs->getInstHeuristicAtIndex(I);
