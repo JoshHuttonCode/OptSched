@@ -558,7 +558,7 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
   // initialize the aco ready list so that the start instruction is ready
   // The luc component is 0 since the root inst uses no instructions
   InstCount RootId = rootInst_->GetNum();
-  HeurType RootHeuristic = dev_kHelper->computeKey(rootInst_, true, dev_DDG_->RegFiles);
+  HeurType RootHeuristic = dev_kHelper->computeKey(rootInst_, true, dev_DDG_->RegFiles, dev_DDG_);
   pheromone_t RootScore = Score(-1, RootId, RootHeuristic);
   ACOReadyListEntry InitialRoot{RootId, 0, RootHeuristic, RootScore};
   dev_readyLs->addInstructionToReadyList(InitialRoot);
@@ -1686,7 +1686,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
         if (wasLastPrdcsr) {
           // If all other predecessors of this successor have been scheduled then
           // we now know in which cycle this successor will become ready.
-          HeurType HeurWOLuc = dev_kHelper->computeKey(crntScsr, false, dev_DDG_->RegFiles);
+          HeurType HeurWOLuc = dev_kHelper->computeKey(crntScsr, false, dev_DDG_->RegFiles, dev_DDG_);
           dev_readyLs->addInstructionToReadyList(ACOReadyListEntry{crntScsr->GetNum(), scsrRdyCycle, HeurWOLuc, 0});
         }
     }
@@ -1706,7 +1706,7 @@ inline void ACOScheduler::UpdateACOReadyList(SchedInstruction *inst) {
       InstCount CandidateId = *dev_readyLs->getInstIdAtIndex(I);
       if (LUCEntry.Width) {
         SchedInstruction *ScsrInst = dataDepGraph_->GetInstByIndx(CandidateId);
-        HeurType LUCVal = ScsrInst->CmputLastUseCnt(dev_DDG_->RegFiles);
+        HeurType LUCVal = ScsrInst->CmputLastUseCnt(dev_DDG_->RegFiles, dev_DDG_);
         LUCVal <<= LUCEntry.Offset;
         Heur &= LUCVal;
       }
