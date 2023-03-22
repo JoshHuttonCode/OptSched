@@ -572,7 +572,9 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
       printf("Crash before while loop inside FindOneSchedule()\n");
     }
   #endif
-  while (!IsSchedComplete_()) {
+  __shared__ bool noSchedsInBlockCompleted;
+  noSchedsInBlockCompleted = true;
+  while (noSchedsInBlockCompleted) {
     // incrementally calculate if there are any instructions with a neutral
     // or positive effect on RP
     for (InstCount I = 0; I < dev_readyLs->getReadyListSize(); ++I) {
@@ -707,12 +709,27 @@ InstSchedule *ACOScheduler::FindOneSchedule(InstCount RPTarget,
     schedule->AppendInst(instNum);
     if (MovToNxtSlot_(inst))
       InitNewCycle_();
+    // at end of loop, check if any ants have completed their schedule, so that
+    // the other ants can terminated
+    if (IsSchedComplete_())
+      noSchedsInBlockCompleted = false;
   }
   #ifdef DEBUG_ACO_CRASH_LOCATIONS
     if (hipThreadIdx_x == 0) {
       printf("After while loop inside FindOneSchedule()\n");
     }
   #endif
+  // for any incomplete schedules, return a null value
+  if (!IsSchedComplete_()) {
+    // set schedule cost to INVALID_VALUE so it is not considered for
+    // iteration best or global best
+    schedule->SetCost(INVALID_VALUE);
+    // keep track of ants terminated
+    atomicAdd(&numAntsTerminated_, 1);
+    dev_readyLs->clearReadyList();
+    // end schedule construction
+    return NULL;
+  }
   dev_rgn_->UpdateScheduleCost(schedule);
   schedule->setIsZeroPerp( ((BBWithSpill *)dev_rgn_)->ReturnPeakSpillCost() == 0 );
   return schedule;
