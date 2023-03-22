@@ -474,7 +474,9 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
   // select the instruction index for fp choice
   size_t fpIndx=0;
   #ifdef __HIP_DEVICE_COMPILE__
-    __shared__ bool dev_useMax;
+  __shared__ bool dev_useMax;
+  // only explore and exploit at block level for first pass
+  if (!dev_rgn_->IsSecondPass()) {
     // select useMax for each block
     if (hipThreadIdx_x == 0)
       dev_useMax = (rand < choose_best_chance) || currentlyWaiting;
@@ -492,6 +494,15 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
         }
       }
     }
+  }
+  else {
+    for (size_t i = 0; i < dev_readyLs->getReadyListSize(); ++i) {
+    point -= *dev_readyLs->getInstScoreAtIndex(i);
+    if (point <= 0) {
+      fpIndx = i;
+      break;
+    }
+  }
   #else
     for (size_t i = 0; i < readyLs->getReadyListSize(); ++i) {
       point -= *readyLs->getInstScoreAtIndex(i);
@@ -502,11 +513,17 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
     }
   #endif
   //finally we pick whether we will return the fp choice or max score inst w/o using a branch
+  size_t indx;
   #ifdef __HIP_DEVICE_COMPILE__
-    size_t indx = dev_useMax ? MaxScoreIndx : fpIndx;
+    if (!dev_rgn_->IsSecondPass())
+      indx = dev_useMax ? MaxScoreIndx : fpIndx;
+    else {
+      bool UseMax = (rand < choose_best_chance) || currentlyWaiting;
+      indx = UseMax ? MaxScoreIndx : fpIndx;
+    }
   #else
     bool UseMax = (rand < choose_best_chance) || currentlyWaiting;
-    size_t indx = UseMax ? MaxScoreIndx : fpIndx;
+    indx = UseMax ? MaxScoreIndx : fpIndx;
   #endif
   #ifdef __HIP_DEVICE_COMPILE__
     #ifdef DEBUG_INSTR_SELECTION
