@@ -497,10 +497,11 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
   }
   else {
     for (size_t i = 0; i < dev_readyLs->getReadyListSize(); ++i) {
-    point -= *dev_readyLs->getInstScoreAtIndex(i);
-    if (point <= 0) {
-      fpIndx = i;
-      break;
+      point -= *dev_readyLs->getInstScoreAtIndex(i);
+      if (point <= 0) {
+        fpIndx = i;
+        break;
+      }
     }
   }
   #else
