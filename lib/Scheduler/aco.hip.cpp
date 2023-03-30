@@ -476,22 +476,11 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
   // select the instruction index for fp choice
   size_t fpIndx=0;
   #ifdef __HIP_DEVICE_COMPILE__
-    __shared__ bool dev_useMax;
-    // select useMax for each block
-    if (hipThreadIdx_x == 0)
-      dev_useMax = (rand < choose_best_chance) || currentlyWaiting;
-    __syncthreads();
-    #ifdef DEBUG_EXPLORATION_EXPLOITATION_TOGETHER
-      if (GLOBALTID < 5 )
-        printf("GLOBALTID %d rand: %f, choose_best_chance: %f, useMax: %s\n", GLOBALTID, rand, choose_best_chance, dev_useMax ? "true" : "false");
-    #endif
-    if (!dev_useMax) {
-      for (size_t i = 0; i < dev_readyLs->getReadyListSize(); ++i) {
-        point -= *dev_readyLs->getInstScoreAtIndex(i);
-        if (point <= 0) {
-          fpIndx = i;
-          break;
-        }
+    for (size_t i = 0; i < dev_readyLs->getReadyListSize(); ++i) {
+      point -= *dev_readyLs->getInstScoreAtIndex(i);
+      if (point <= 0) {
+        fpIndx = i;
+        break;
       }
     }
   #else
@@ -504,12 +493,9 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
     }
   #endif
   //finally we pick whether we will return the fp choice or max score inst w/o using a branch
-  #ifdef __HIP_DEVICE_COMPILE__
-    size_t indx = dev_useMax ? MaxScoreIndx : fpIndx;
-  #else
-    bool UseMax = (rand < choose_best_chance) || currentlyWaiting;
-    size_t indx = UseMax ? MaxScoreIndx : fpIndx;
-  #endif
+  bool UseMax = (rand < choose_best_chance) || currentlyWaiting;
+  size_t indx = UseMax ? MaxScoreIndx : fpIndx;
+
   #ifdef __HIP_DEVICE_COMPILE__
     #ifdef DEBUG_INSTR_SELECTION
     if (GLOBALTID==0) {
