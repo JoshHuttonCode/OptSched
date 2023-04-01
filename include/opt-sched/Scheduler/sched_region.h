@@ -86,7 +86,6 @@ public:
                       InstCount &bestSchedLngth, InstCount &hurstcCost,
                       InstCount &hurstcSchedLngth, InstSchedule *&bestSched,
                       bool filterByPerp, const BLOCKS_TO_KEEP blocksToKeep, unsigned loopDepth);
-					  //bool filterByPerp, const BLOCKS_TO_KEEP blocksToKeep);
 
   // External abstract functions.
 

@@ -474,8 +474,8 @@ void ScheduleDAGOptSched::schedule() {
   unsigned depth;
   if (C->MLI != nullptr) {
     depth = MLI->getLoopDepth(BB);
-	//Logger::Info("Loop depth is %d", depth);
-  } else {
+  } 
+  else {
 	depth = -1;
   }
 
