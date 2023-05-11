@@ -291,7 +291,7 @@ InstCount ACOScheduler::SelectInstruction(SchedInstruction *lastInst, InstCount 
     // add a score penalty for instructions that are not ready yet
     // unnecessary stalls should not be considered if current RP is low, or if we already have too many stalls
     if (*dev_readyLs->getInstReadyOnAtIndex(I) > dev_crntCycleNum_[GLOBALTID]) {
-      // if we any instruction that doesn't have a negative effect on RP
+      // if we have any instruction available that doesn't have a negative effect on RP
       // or block ID is under 30, do not add an optional stall
       if (dev_RP0OrPositiveCount[GLOBALTID] != 0 || hipBlockIdx_x < BLOCKOPTSTALLTHRESHOLD) {
         #ifdef DEBUG_INSTR_SELECTION
