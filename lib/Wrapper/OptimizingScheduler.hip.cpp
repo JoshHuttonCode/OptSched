@@ -18,6 +18,7 @@
 #include "opt-sched/Scheduler/utilities.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/CodeGen/LiveIntervals.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -37,6 +38,8 @@
 #include "opt-sched/Scheduler/dev_defines.h"
 #include "opt-sched/Scheduler/aco.h"
 #include "llvm/Target/TargetMachine.h"
+#include "GCNRegPressure.h"
+#include "SIMachineFunctionInfo.h"
 #include <algorithm>
 #include <chrono>
 #include <string>
@@ -47,6 +50,8 @@ using namespace llvm::opt_sched;
 
 // hack to print spills
 bool OPTSCHED_gPrintSpills;
+
+const unsigned ILPMetrics::ScaleFactor = 100;
 
 // An array of possible OptSched heuristic names
 constexpr struct {
@@ -277,6 +282,194 @@ void ScheduleDAGOptSched::initSchedulers() {
   SchedPasses.push_back(OptSchedBalanced);
 }
 
+void ScheduleEvaluator::recordSchedule() {
+  Unsched.clear();
+  Unsched.reserve(DAG.NumRegionInstrs);
+  // Record the original order of the instructions.
+  for (auto &MI : DAG)
+    Unsched.push_back(&MI);
+}
+
+void ScheduleEvaluator::revertScheduling() {
+  DAG.RegionEnd = DAG.RegionBegin;
+  int SkippedDebugInstr = 0;
+  for (MachineInstr *MI : Unsched) {
+    if (MI->isDebugInstr()) {
+      ++SkippedDebugInstr;
+      continue;
+    }
+
+    if (MI->getIterator() != DAG.RegionEnd) {
+      DAG.BB->remove(MI);
+      DAG.BB->insert(DAG.RegionEnd, MI);
+      if (!MI->isDebugInstr())
+        DAG.LIS->handleMove(*MI, true);
+    }
+
+    // Reset read-undef flags and update them later.
+    for (auto &Op : MI->operands())
+      if (Op.isReg() && Op.isDef())
+        Op.setIsUndef(false);
+    RegisterOperands RegOpers;
+    RegOpers.collect(*MI, *DAG.TRI, DAG.MRI, DAG.ShouldTrackLaneMasks, false);
+    if (!MI->isDebugInstr()) {
+      if (DAG.ShouldTrackLaneMasks) {
+        // Adjust liveness and add missing dead+read-undef flags.
+        SlotIndex SlotIdx = DAG.LIS->getInstructionIndex(*MI).getRegSlot();
+        RegOpers.adjustLaneLiveness(*DAG.LIS, DAG.MRI, SlotIdx, MI);
+      } else {
+        // Adjust for missing dead-def flags.
+        RegOpers.detectDeadDefs(*MI, *DAG.LIS);
+      }
+    }
+    DAG.RegionEnd = MI->getIterator();
+    ++DAG.RegionEnd;
+    LLVM_DEBUG(dbgs() << "Scheduling " << *MI);
+  }
+
+  // After reverting schedule, debug instrs will now be at the end of the block
+  // and RegionEnd will point to the first debug instr. Increment RegionEnd
+  // pass debug instrs to the actual end of the scheduling region.
+  while (SkippedDebugInstr-- > 0)
+    ++DAG.RegionEnd;
+
+  // If Unsched.front() instruction is a debug instruction, this will actually
+  // shrink the region since we moved all debug instructions to the end of the
+  // block. Find the first instruction that is not a debug instruction.
+  DAG.RegionBegin = Unsched.front()->getIterator();
+  if (DAG.RegionBegin->isDebugInstr()) {
+    for (MachineInstr *MI : Unsched) {
+      if (MI->isDebugInstr())
+        continue;
+      DAG.RegionBegin = MI->getIterator();
+      break;
+    }
+  }
+
+  // Then move the debug instructions back into their correct place and set
+  // RegionBegin and RegionEnd if needed.
+  DAG.placeDebugValues();
+}
+
+void ScheduleEvaluator::calculateRPBefore() {
+  RPBefore = DAG.getRealRegPressure();
+}
+
+void ScheduleEvaluator::calculateRPAfter() {
+  RPAfter = DAG.getRealRegPressure();
+}
+
+unsigned ScheduleEvaluator::getOccDifference() const {
+  const GCNSubtarget &ST = DAG.MF.getSubtarget<GCNSubtarget>();
+  return ILPMetrics::ScaleFactor * RPAfter.getOccupancy(ST) / RPBefore.getOccupancy(ST);
+}
+
+unsigned ScheduleEvaluator::getILPDifference() const {
+  // How much should we bias the schedule metric to favor Occupancy over ILP?
+  // A value of  100 means fully maximize Occupancy.
+  unsigned ScheduleMetricOccBias = 10;
+  return ILPMetrics::ScaleFactor * (ILPBefore + ScheduleMetricOccBias) / ILPAfter;
+}
+
+#ifndef NDEBUG
+struct EarlierIssuingCycle {
+  bool operator()(std::pair<MachineInstr *, unsigned> A,
+                  std::pair<MachineInstr *, unsigned> B) const {
+    return A.second < B.second;
+  }
+};
+
+static void printScheduleModel(std::set<std::pair<MachineInstr *, unsigned>,
+                                        EarlierIssuingCycle> &ReadyCycles) {
+  if (ReadyCycles.empty())
+    return;
+  unsigned BBNum = ReadyCycles.begin()->first->getParent()->getNumber();
+  dbgs() << "\n################## Schedule time ReadyCycles for MBB : " << BBNum
+         << " ##################\n# Cycle #\t\t\tInstruction          "
+            "             "
+            "                            \n";
+  unsigned IPrev = 1;
+  for (auto &I : ReadyCycles) {
+    if (I.second > IPrev + 1)
+      dbgs() << "****************************** BUBBLE OF " << I.second - IPrev
+             << " CYCLES DETECTED ******************************\n\n";
+    dbgs() << "[ " << I.second << " ]  :  " << *I.first << "\n";
+    IPrev = I.second;
+  }
+}
+#endif
+
+static unsigned computeSUnitReadyCycle(
+    ScheduleDAGOptSched &DAG, const SUnit &SU, unsigned CurrCycle,
+    DenseMap<unsigned, unsigned> &ReadyCycles, const TargetSchedModel &SM) {
+  unsigned ReadyCycle = CurrCycle;
+  for (auto &D : SU.Preds) {
+    if (D.isAssignedRegDep()) {
+      MachineInstr *DefMI = D.getSUnit()->getInstr();
+      unsigned Latency = SM.computeInstrLatency(DefMI);
+      unsigned DefReady = ReadyCycles[DAG.getSUnit(DefMI)->NodeNum];
+      ReadyCycle = std::max(ReadyCycle, DefReady + Latency);
+    }
+  }
+  ReadyCycles[SU.NodeNum] = ReadyCycle;
+  return ReadyCycle;
+}
+
+ILPMetrics ScheduleEvaluator::calculateILP() const {
+#ifndef NDEBUG
+  std::set<std::pair<MachineInstr *, unsigned>, EarlierIssuingCycle>
+      ReadyCyclesSorted;
+#endif
+  const GCNSubtarget &ST = DAG.MF.getSubtarget<GCNSubtarget>();
+  const TargetSchedModel &SM = ST.getInstrInfo()->getSchedModel();
+  unsigned SumBubbles = 0;
+  DenseMap<unsigned, unsigned> ReadyCycles;
+  unsigned CurrCycle = 0;
+  for (auto &MI : DAG) {
+    SUnit *SU = DAG.getSUnit(&MI);
+    if (!SU)
+      continue;
+    unsigned ReadyCycle =
+        computeSUnitReadyCycle(DAG, *SU, CurrCycle, ReadyCycles, SM);
+    SumBubbles += ReadyCycle - CurrCycle;
+#ifndef NDEBUG
+    ReadyCyclesSorted.insert(std::make_pair(SU->getInstr(), ReadyCycle));
+#endif
+    CurrCycle = ++ReadyCycle;
+  }
+#ifndef NDEBUG
+  LLVM_DEBUG(
+      printScheduleModel(ReadyCyclesSorted);
+      dbgs() << "\n\t"
+             << "Metric: "
+             << (SumBubbles
+                     ? (SumBubbles * ILPMetrics::ScaleFactor) / CurrCycle
+                     : 1)
+             << "\n\n");
+#endif
+
+  return ILPMetrics(CurrCycle, SumBubbles);
+}
+
+void ScheduleEvaluator::calcualteILPBefore() {
+   ILPBefore = calculateILP().getMetric();
+}
+
+void ScheduleEvaluator::claculateILPAfter() {
+  ILPAfter = calculateILP().getMetric();
+}
+
+unsigned ScheduleEvaluator::getOccupancyBefore() const {
+  const GCNSubtarget &ST = DAG.MF.getSubtarget<GCNSubtarget>();
+  return RPBefore.getOccupancy(ST);
+}
+
+GCNRegPressure ScheduleDAGOptSched::getRealRegPressure() const {
+  GCNDownwardRPTracker RPTracker(*LIS);
+  RPTracker.advance(begin(), end());
+  return RPTracker.moveMaxPressure();
+}
+
 // schedule called for each basic block
 void ScheduleDAGOptSched::schedule() {
   ShouldTrackPressure = true;
@@ -292,11 +485,14 @@ void ScheduleDAGOptSched::schedule() {
   // first just record the scheduling region.
   if (OptSchedEnabled && TwoPassEnabled && !TwoPassSchedulingStarted) {
     Regions.push_back(std::make_pair(RegionBegin, RegionEnd));
+    SchedEvals.emplace_back(*this);
     LLVM_DEBUG(
         dbgs() << "Recording scheduling region before scheduling with two pass "
                   "scheduler...\n");
     return;
   }
+
+  auto &SchedEval = SchedEvals[RegionNumber];
 
   if (!OptSchedEnabled || !scheduleSpecificRegion(RegionName, schedIni)) {
     LLVM_DEBUG(dbgs() << "Skipping region " << RegionName << "\n");
@@ -405,6 +601,15 @@ void ScheduleDAGOptSched::schedule() {
     // different from the one produced by LLVM without OptSched.
     SetupLLVMDag();
   }
+
+  // Revord MachineInstr order in the first pass for a possible revert if
+  // scheduling makes things worse.
+  if (!SecondPass) {
+    SchedEval.recordSchedule();
+    SchedEval.calculateRPBefore();
+    SchedEval.calcualteILPBefore();
+  }
+
   // Build LLVM DAG
   OST->initRegion(this, MM.get(), OccupancyLimits);
   // Convert graph
@@ -495,13 +700,15 @@ void ScheduleDAGOptSched::schedule() {
   }
 
   LLVM_DEBUG(Logger::Info("OptSched succeeded."));
-  OST->finalizeRegion(Sched);
-  if (!OST->shouldKeepSchedule()) {
-  for (size_t i = 0; i < SUnits.size(); i++) {
-      SUnit SU = SUnits[i];
-      ResetFlags(SU);
+  if (!SecondPass) {
+    OST->finalizeRegion(Sched);
+    if (!OST->shouldKeepSchedule()) {
+      for (size_t i = 0; i < SUnits.size(); i++) {
+        SUnit SU = SUnits[i];
+        ResetFlags(SU);
+      }
+      return;
     }
-    return;
   }
 
   // Count simulated spills.
@@ -529,6 +736,27 @@ void ScheduleDAGOptSched::schedule() {
     }
   }
   placeDebugValues();
+
+  if (SecondPass) {
+    SchedEval.calculateRPAfter();
+    SchedEval.claculateILPAfter();
+
+    unsigned ILPImprovement = SchedEval.getILPDifference();
+    unsigned OccImprovement = SchedEval.getOccDifference();
+    unsigned Profit = OccImprovement * ILPImprovement / ILPMetrics::ScaleFactor;
+    dbgs() << "ILP improvement metric: " << ILPImprovement << "\n";
+    dbgs() << "Occpunacy improvement metric: " << OccImprovement << "\n";
+    dbgs() << "Profit: " << Profit << "\n";
+    if (Profit < ILPMetrics::ScaleFactor) {
+      dbgs() << "Reverting scheduling\n";
+      SchedEval.revertScheduling();
+      SIMachineFunctionInfo *MFI = const_cast<SIMachineFunctionInfo *>(
+          MF.getInfo<SIMachineFunctionInfo>());
+      MFI->limitOccupancy(SchedEval.getOccupancyBefore());
+    } else {
+      OST->finalizeRegion(Sched);
+    }
+  }
 
 #ifdef IS_DEBUG_PEAK_PRESSURE
   Logger::Info("Register pressure after");
@@ -1002,7 +1230,7 @@ void ScheduleDAGOptSched::getRealCfgPaths() {
   sys::path::native(PathCfgMM);
 }
 
-#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+#if !defined(NDEBUG)
 // Print registers from RegisterMaskPair vector
 static Printable
 printMaskPairs(const SmallVectorImpl<RegisterMaskPair> &RegPairs,
