@@ -353,10 +353,20 @@ void ScheduleEvaluator::revertScheduling() {
 
 void ScheduleEvaluator::calculateRPBefore() {
   RPBefore = DAG.getRealRegPressure();
+  #if 1
+  const GCNSubtarget &ST = DAG.MF.getSubtarget<GCNSubtarget>();
+  dbgs() << "RPBefore: " << RPBefore.getOccupancy(ST) << '\n';
+  //RPBefore.dump();
+  #endif
 }
 
 void ScheduleEvaluator::calculateRPAfter() {
   RPAfter = DAG.getRealRegPressure();
+  #if 1
+  const GCNSubtarget &ST = DAG.MF.getSubtarget<GCNSubtarget>();
+  dbgs() << "RPAfter: " << RPAfter.getOccupancy(ST) << '\n';
+  //RPAfter.dump();
+  #endif
 }
 
 unsigned ScheduleEvaluator::getOccDifference() const {
@@ -452,11 +462,25 @@ ILPMetrics ScheduleEvaluator::calculateILP() const {
 }
 
 void ScheduleEvaluator::calcualteILPBefore() {
-   ILPBefore = calculateILP().getMetric();
+  auto ILPInfo = calculateILP();
+  #if 1
+  dbgs() << "ILPBefore:\n";
+  dbgs() << "Length: " << ILPInfo.getLength() << "\n";
+  dbgs() << "Stalls: " << ILPInfo.getBubbles() << "\n";
+  dbgs() << "Metric: " << ILPInfo.getMetric() << "\n";
+  #endif
+  ILPBefore = ILPInfo.getMetric();
 }
 
 void ScheduleEvaluator::claculateILPAfter() {
-  ILPAfter = calculateILP().getMetric();
+  auto ILPInfo = calculateILP();
+  #if 1
+  dbgs() << "ILPAfter:\n";
+  dbgs() << "Length: " << ILPInfo.getLength() << "\n";
+  dbgs() << "Stalls: " << ILPInfo.getBubbles() << "\n";
+  dbgs() << "Metric: " << ILPInfo.getMetric() << "\n";
+  #endif
+  ILPAfter = ILPInfo.getMetric();
 }
 
 unsigned ScheduleEvaluator::getOccupancyBefore() const {
