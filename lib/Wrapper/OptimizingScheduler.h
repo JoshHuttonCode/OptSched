@@ -71,10 +71,10 @@ private:
   GCNRegPressure RPAfter;
 
   // ILP before scheduling.
-  unsigned ILPBefore;
+  int64_t ILPBefore;
 
   // ILP after scheduling.
-  unsigned ILPAfter;
+  int64_t ILPAfter;
 
   // Record the original instruction order.
   std::vector<MachineInstr *> Unsched;
@@ -98,7 +98,7 @@ public:
   unsigned getOccDifference() const;
 
   // Returns ILPAfter - ILPBefore.
-  unsigned getILPDifference() const;
+  int64_t getILPDifference() const;
 
   unsigned getOccupancyBefore() const;
 

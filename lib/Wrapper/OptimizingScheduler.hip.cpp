@@ -371,14 +371,11 @@ void ScheduleEvaluator::calculateRPAfter() {
 
 unsigned ScheduleEvaluator::getOccDifference() const {
   const GCNSubtarget &ST = DAG.MF.getSubtarget<GCNSubtarget>();
-  return ILPMetrics::ScaleFactor * RPAfter.getOccupancy(ST) / RPBefore.getOccupancy(ST);
+  return RPAfter.getOccupancy(ST) - RPBefore.getOccupancy(ST);
 }
 
-unsigned ScheduleEvaluator::getILPDifference() const {
-  // How much should we bias the schedule metric to favor Occupancy over ILP?
-  // A value of  100 means fully maximize Occupancy.
-  unsigned ScheduleMetricOccBias = 10;
-  return ILPMetrics::ScaleFactor * (ILPBefore + ScheduleMetricOccBias) / ILPAfter;
+int64_t ScheduleEvaluator::getILPDifference() const {
+  return ILPAfter - ILPBefore;
 }
 
 #ifndef NDEBUG
@@ -469,7 +466,7 @@ void ScheduleEvaluator::calcualteILPBefore() {
   dbgs() << "Stalls: " << ILPInfo.getBubbles() << "\n";
   dbgs() << "Metric: " << ILPInfo.getMetric() << "\n";
   #endif
-  ILPBefore = ILPInfo.getMetric();
+  ILPBefore = ILPInfo.getLength();
 }
 
 void ScheduleEvaluator::claculateILPAfter() {
@@ -480,7 +477,7 @@ void ScheduleEvaluator::claculateILPAfter() {
   dbgs() << "Stalls: " << ILPInfo.getBubbles() << "\n";
   dbgs() << "Metric: " << ILPInfo.getMetric() << "\n";
   #endif
-  ILPAfter = ILPInfo.getMetric();
+  ILPAfter = ILPInfo.getLength();
 }
 
 unsigned ScheduleEvaluator::getOccupancyBefore() const {
@@ -765,13 +762,12 @@ void ScheduleDAGOptSched::schedule() {
     SchedEval.calculateRPAfter();
     SchedEval.claculateILPAfter();
 
-    unsigned ILPImprovement = SchedEval.getILPDifference();
-    unsigned OccImprovement = SchedEval.getOccDifference();
-    unsigned Profit = OccImprovement * ILPImprovement / ILPMetrics::ScaleFactor;
-    dbgs() << "ILP improvement metric: " << ILPImprovement << "\n";
-    dbgs() << "Occpunacy improvement metric: " << OccImprovement << "\n";
-    dbgs() << "Profit: " << Profit << "\n";
-    if (Profit < ILPMetrics::ScaleFactor) {
+    const int64_t Threshold = 100;
+    unsigned OccDiff = SchedEval.getOccDifference();
+    int64_t ILPDiff = SchedEval.getILPDifference();
+    dbgs() << "Occupancy improvement metric: " << OccDiff << "\n";
+    dbgs() << "ILP improvement metric: " << ILPDiff << "\n";
+    if (OccDiff > 0 && ILPDiff > Threshold) {
       dbgs() << "Reverting scheduling\n";
       SchedEval.revertScheduling();
       SIMachineFunctionInfo *MFI = const_cast<SIMachineFunctionInfo *>(
