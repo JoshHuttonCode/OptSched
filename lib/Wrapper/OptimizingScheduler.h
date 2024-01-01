@@ -92,7 +92,7 @@ public:
 
   void calcualteILPBefore();
 
-  void claculateILPAfter();
+  void calculateILPAfter();
 
   // Returns RPAfter - RPBefore.
   unsigned getOccDifference() const;
@@ -101,6 +101,16 @@ public:
   int64_t getILPDifference() const;
 
   unsigned getOccupancyBefore() const;
+
+  unsigned getOccupancyAfter() const;
+
+  unsigned getVGPRsBefore() const;
+
+  unsigned getVGPRsAfter() const;
+
+  int64_t getILPBefore() const;
+
+  int64_t getILPAfter() const;
 
   void recordSchedule();
 

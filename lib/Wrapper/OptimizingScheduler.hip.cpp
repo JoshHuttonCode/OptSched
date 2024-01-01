@@ -175,6 +175,37 @@ static SchedulerType parseListSchedType() {
   return SCHED_LIST;
 }
 
+static unsigned getVGPRMargin(unsigned VGPRs) {
+  if (VGPRs <= 24) {
+    return 24 - VGPRs;
+  }
+  if (VGPRs <= 28) {
+    return 28 - VGPRs;
+  }
+  if (VGPRs <= 32) {
+    return 32 - VGPRs;
+  }
+  if (VGPRs <= 36) {
+    return 36 - VGPRs;
+  }
+  if (VGPRs <= 40) {
+    return 40 - VGPRs;
+  }
+  if (VGPRs <= 48) {
+    return 48 - VGPRs;
+  }
+  if (VGPRs <= 64) {
+    return 64 - VGPRs;
+  }
+  if (VGPRs <= 84) {
+    return 84 - VGPRs;
+  }
+  if (VGPRs <= 128) {
+    return 128 - VGPRs;
+  }
+  return UINT_MAX;
+}
+
 // static std::unique_ptr<GraphTrans>
 // createStaticNodeSupTrans(DataDepGraph *DataDepGraph, bool IsMultiPass = false) {
 //   return std::make_unique<StaticNodeSupTrans>(DataDepGraph, IsMultiPass);
@@ -469,7 +500,7 @@ void ScheduleEvaluator::calcualteILPBefore() {
   ILPBefore = ILPInfo.getLength();
 }
 
-void ScheduleEvaluator::claculateILPAfter() {
+void ScheduleEvaluator::calculateILPAfter() {
   auto ILPInfo = calculateILP();
   #if 1
   dbgs() << "ILPAfter:\n";
@@ -483,6 +514,27 @@ void ScheduleEvaluator::claculateILPAfter() {
 unsigned ScheduleEvaluator::getOccupancyBefore() const {
   const GCNSubtarget &ST = DAG.MF.getSubtarget<GCNSubtarget>();
   return RPBefore.getOccupancy(ST);
+}
+
+unsigned ScheduleEvaluator::getOccupancyAfter() const {
+  const GCNSubtarget &ST = DAG.MF.getSubtarget<GCNSubtarget>();
+  return RPAfter.getOccupancy(ST);
+}
+
+int64_t ScheduleEvaluator::getILPBefore() const {
+  return ILPBefore;
+}
+
+int64_t ScheduleEvaluator::getILPAfter() const {
+  return ILPAfter;
+}
+
+unsigned ScheduleEvaluator::getVGPRsBefore() const {
+  return RPBefore.getVGPRNum(false);
+}
+
+unsigned ScheduleEvaluator::getVGPRsAfter() const {
+  return RPAfter.getVGPRNum(false);
 }
 
 GCNRegPressure ScheduleDAGOptSched::getRealRegPressure() const {
@@ -760,18 +812,58 @@ void ScheduleDAGOptSched::schedule() {
 
   if (SecondPass) {
     SchedEval.calculateRPAfter();
-    SchedEval.claculateILPAfter();
+    SchedEval.calculateILPAfter();
 
-    const int64_t Threshold = 100;
-    unsigned OccDiff = SchedEval.getOccDifference();
-    int64_t ILPDiff = SchedEval.getILPDifference();
-    dbgs() << "Occupancy improvement metric: " << OccDiff << "\n";
-    dbgs() << "ILP improvement metric: " << ILPDiff << "\n";
-    if (OccDiff > 0 && ILPDiff > Threshold) {
+    SIMachineFunctionInfo *MFI = const_cast<SIMachineFunctionInfo *>(
+		    MF.getInfo<SIMachineFunctionInfo>());
+
+    const int64_t OccWeight = 10;
+    const int64_t LDFactor = 15;
+
+    dbgs() << "InstCost: " << MFI->getInstCost() << "\n";
+    dbgs() << "MemInstCost: " << MFI->getMemInstCost();
+    dbgs() << " (" << (MFI->getMemInstCost() * 100) / MFI->getInstCost() << "%)\n";
+    dbgs() << "IndirectAccessInstCost: " << MFI->getIndirectAccessInstCost();
+    dbgs() << " (" << (MFI->getIndirectAccessInstCost() * 100) / MFI->getInstCost() << "%)\n";
+    dbgs() << "LargeStrideInstCost: " << MFI->getLargeStrideInstCost();
+    dbgs() << " (" << (MFI->getLargeStrideInstCost() * 100) / MFI->getInstCost() << "%)\n";
+    dbgs() << "WaveLimiter: " << MFI->needsWaveLimiter() << "\n";
+    dbgs() << "Memory Bound: " << MFI->isMemoryBound() << "\n"; 
+    dbgs() << "OccWeight: " << OccWeight << "\n";
+    dbgs() << "LoopDepth: " << depth << "\n";
+
+    auto Cost = [OccWeight, depth](int64_t ILP, unsigned Occ, unsigned VGPRMargin) {
+      return OccWeight*(20*(10/Occ) + 0*(10/std::pow(2, VGPRMargin))) + ILP * std::pow(LDFactor, depth);
+    };
+
+    int64_t ILPBefore = SchedEval.getILPBefore();
+    int64_t ILPAfter = SchedEval.getILPAfter();
+    unsigned OccBefore = SchedEval.getOccupancyBefore();
+    unsigned OccAfter = SchedEval.getOccupancyAfter();
+    unsigned VGPRMarginBefore = getVGPRMargin(SchedEval.getVGPRsBefore());
+    unsigned VGPRMarginAfter = getVGPRMargin(SchedEval.getVGPRsAfter());
+
+    int64_t CostBefore = Cost(ILPBefore, OccBefore, VGPRMarginBefore);
+    int64_t CostAfter = Cost(ILPAfter, OccAfter, VGPRMarginAfter);
+
+    const int64_t Threshold = 13;
+    dbgs() << "Before:\n";
+    dbgs() << "\tILP: " << ILPBefore << "\n";
+    dbgs() << "\tOcc: " << OccBefore << "\n";
+    dbgs() << "\tNum VGPRs: " << SchedEval.getVGPRsBefore() << "\n";
+    dbgs() << "\tVGPR Margin: " << VGPRMarginBefore << "\n";
+    dbgs() << "\tCost: " << CostBefore << "\n";
+    dbgs() << "After:\n";
+    dbgs() << "\tILP: " << ILPAfter << "\n";
+    dbgs() << "\tOcc: " << OccAfter << "\n";
+    dbgs() << "\tNum VGPRs: " << SchedEval.getVGPRsAfter() << "\n";
+    dbgs() << "\tVGPR Margin: " << VGPRMarginAfter << "\n";
+    dbgs() << "\tCost: " << CostAfter << "\n";
+    dbgs() << "Cost Improvement: " << CostBefore - CostAfter << "\n";
+
+    if (CostAfter > CostBefore - Threshold) {
       dbgs() << "Reverting scheduling\n";
       SchedEval.revertScheduling();
-      SIMachineFunctionInfo *MFI = const_cast<SIMachineFunctionInfo *>(
-          MF.getInfo<SIMachineFunctionInfo>());
       MFI->limitOccupancy(SchedEval.getOccupancyBefore());
     } else {
       OST->finalizeRegion(Sched);

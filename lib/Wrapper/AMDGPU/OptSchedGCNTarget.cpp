@@ -92,6 +92,7 @@ void OptSchedGCNTarget::initRegion(llvm::ScheduleDAGInstrs *DAG_,
   MM = MM_;
   ST = &MF->getSubtarget<GCNSubtarget>();
   MaxOccLDS = ST->getOccupancyWithLocalMemSize(*MF);
+  dbgs() << "needsWaveLimiter: " << MFI->needsWaveLimiter() << "\n";
 
   GCNDownwardRPTracker RPTracker(*DAG->getLIS());
   RPTracker.advance(DAG->begin(), DAG->end(), nullptr);
